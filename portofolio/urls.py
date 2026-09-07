@@ -1,8 +1,9 @@
 from django.contrib import admin
 from django.urls import path
-from portofolio import views
+
+from portofolio.views import landing_page
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', views.landing_page, name='landing_page'),  # Pastikan baris ini ada
+    path('', landing_page, name='landing_page'),
 ]

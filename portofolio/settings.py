@@ -27,11 +27,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-dxe_4wbfjy1l)&c3g-@33_ple9s11ni&%^wmjavaou6*awi*$e'
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "samuel-kaevin-portofolio.pws.cs.ui.ac.id."]
 PRODUCTION = os.getenv('PRODUCTION', 'False').lower() == 'true'
+
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = not PRODUCTION
+
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "samuel-kaevin-myportofolio.pws.cs.ui.ac.id"]
 
 
 # Application definition
@@ -72,9 +73,6 @@ TEMPLATES = [
         },
     },
 ]
-
-STATIC_URL = 'static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
 
 WSGI_APPLICATION = 'portofolio.wsgi.application'
 
