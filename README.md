@@ -46,17 +46,6 @@ Proyek di-deploy ke PWS Fasilkom UI (Dockerfile + gunicorn, binding ke port 80 s
 Sebagian pekerjaan di repo ini saya kerjakan dibantu **Claude Code (Claude Sonnet 5)** lewat ekstensi VS Code. Kira-kira begini pembagiannya:
 
 - Debugging deployment: sebelum Tugas 1 ini dikerjakan, deployment ke PWS sempat gagal (404, lalu Bad Gateway). Saya minta Claude membaca source code, menelusuri kenapa error, lalu ia menemukan bahwa repo belum punya Dockerfile sama sekali dan `ALLOWED_HOSTS` salah tulis. Claude juga sempat riset dokumentasi resmi platform PWS untuk memastikan konvensi port yang benar (port 80, bukan 8080) sebelum saya commit fix-nya.
-- Struktur & styling section Pengalaman: saya kasih data pengalaman saya (screenshot LinkedIn), lalu minta Claude membuatkan markup dan CSS untuk section baru dengan syarat: tetap HTML5/CSS3 murni, rapi, responsif, dan bukan gaya UI generik ala AI (card dengan shadow/gradient/emoji). Hasilnya berupa layout timeline bernomor yang saya sesuaikan lagi warnanya supaya konsisten dengan tema warna yang sudah saya buat sendiri di Tutorial 0.
-
-**Tugas 2:**
-- **Inisiatif Pengembangan Ekstra**: Alih-alih hanya membuat 1 model baru sesuai syarat minimal, saya menginstruksikan AI untuk merancang dan membangun 2 model sekaligus: `Project` dan `Award` agar portofolio saya lebih utuh.
-- **Automasi Data & Scripting**: Saya menggunakan AI untuk mem-parsing teks pengalaman panjang dan gambar sertifikat saya ke dalam format data terstruktur. Selanjutnya, AI membantu membuat *script* `populate_data.py` guna memuat puluhan entri pengalaman dan penghargaan tersebut ke dalam database SQLite secara otomatis, menghindari proses hardcoding manual.
-- **Pembuatan Test Case**: Untuk memastikan kualitas, AI membantu merancang unit test di `tests.py` dengan cakupan pengujian ketersediaan halaman, rendering data model, dan *empty state*.
-
-**Bagian yang saya kerjakan/putuskan sendiri secara penuh**:
-- Konten spesifik About Me, bio, dan pemilihan foto.
-- Pertanyaan Reflektif merupakan murni hasil ketikan dan pemikiran analitis saya sendiri berdasarkan pengalaman nyata, bukan hasil generate AI.
-- Verifikasi manual, eksekusi migrasi, pengecekan *error* via terminal, dan pengujian responsivitas UI secara langsung di browser.
 
 ## Pertanyaan Reflektif
 
