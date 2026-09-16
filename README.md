@@ -45,7 +45,7 @@ Proyek di-deploy ke PWS Fasilkom UI (Dockerfile + gunicorn, binding ke port 80 s
 
 Sebagian pekerjaan di repo ini saya kerjakan dibantu Claude Code lewat ekstensi VS Code. Kira-kira begini pembagiannya:
 
-- Debugging deployment: sebelum Tugas 1 ini dikerjakan, deployment ke PWS sempat gagal (404, lalu Bad Gateway). Saya minta Claude membaca source code, menelusuri kenapa error, lalu ia menemukan bahwa repo belum punya Dockerfile sama sekali dan `ALLOWED_HOSTS` salah tulis. Claude juga sempat riset dokumentasi resmi platform PWS untuk memastikan konvensi port yang benar (port 80, bukan 8080) sebelum saya commit fix-nya.
+- Debugging deployment: sebelum Tugas 1 ini dikerjakan, deployment ke PWS sempat gagal (404, lalu Bad Gateway). Saya minta Claude membaca source code, menelusuri kenapa error, lalu ia menemukan bahwa repo belum punya Dockerfile sama sekali dan `ALLOWED_HOSTS` salah tulis. Claude juga sempat riset dokumentasi resmi platform PWS untuk memastikan konvensi port yang benar (port 80, bukan 8080) sebelum saya commit fix-nya mantap.
 
 ## Pertanyaan Reflektif
 
