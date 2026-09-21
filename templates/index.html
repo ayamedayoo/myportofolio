@@ -1,16 +1,17 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block content %}
     <main>
         <section class="hero" id="profile">
             <div class="container hero-grid">
                 <div class="hero-identity">
-                    <p class="hero-kicker">Information Systen &middot; Universitas Indonesia</p>
+                    <p class="hero-kicker">Information System &middot; Universitas Indonesia</p>
                     <h1>{{ name }}</h1>
                 </div>
                 <div class="hero-photo">
                     <div class="photo-block"></div>
-                    <img class="avatar" src="/static/img/samuel.jpg" alt="Photo of {{ name }}">
+                    <img class="avatar" src="{% static 'img/samuel.jpg' %}" alt="Photo of {{ name }}">
                 </div>
                 <div class="hero-details">
                     <p class="bio">{{ bio }}</p>

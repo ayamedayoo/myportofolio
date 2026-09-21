@@ -1,0 +1,26 @@
+{% comment %}Render semua field dari sebuah ModelForm beserta help text dan pesan error-nya.{% endcomment %}
+{% if form.non_field_errors %}
+<div class="form-alert" role="alert">
+    {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+</div>
+{% endif %}
+
+{% for field in form %}
+    {% if field.widget_type == 'checkbox' %}
+    <div class="form-group form-group--check">
+        {{ field }}
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+    </div>
+    {% else %}
+    <div class="form-group{% if field.errors %} form-group--invalid{% endif %}">
+        <label for="{{ field.id_for_label }}">
+            {{ field.label }}{% if field.field.required %} <span class="form-required" aria-hidden="true">*</span>{% endif %}
+        </label>
+        {{ field }}
+        {% if field.help_text %}<p class="form-help">{{ field.help_text }}</p>{% endif %}
+        {% for error in field.errors %}
+            <p class="form-error">{{ error }}</p>
+        {% endfor %}
+    </div>
+    {% endif %}
+{% endfor %}

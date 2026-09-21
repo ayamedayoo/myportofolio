@@ -1,18 +1,18 @@
 {% extends "base.html" %}
 {% block meta %}
-    <title>{% if project %}Edit{% else %}Tambah{% endif %} Project - {{ name }}</title>
+    <title>{% if award %}Edit{% else %}Tambah{% endif %} Award - {{ name }}</title>
 {% endblock meta %}
 {% block content %}
     <main>
         <section class="experience-section">
             <div class="container form-container">
-                <a href="{% url 'main:show_project' %}" class="back-link">&larr; Kembali ke Project</a>
-                {% if project %}
-                    <p class="section-kicker">Edit proyek</p>
-                    <h1>{{ project.title }}</h1>
+                <a href="{% url 'main:show_award' %}" class="back-link">&larr; Kembali ke Award</a>
+                {% if award %}
+                    <p class="section-kicker">Edit penghargaan</p>
+                    <h1>{{ award.title }}</h1>
                 {% else %}
-                    <p class="section-kicker">Proyek baru</p>
-                    <h1>Tambah Project</h1>
+                    <p class="section-kicker">Penghargaan baru</p>
+                    <h1>Tambah Award</h1>
                 {% endif %}
 
                 <form method="post" class="project-form">
@@ -20,9 +20,9 @@
                     {% include "components/form_fields.html" %}
                     <div class="form-actions">
                         <button type="submit" class="button">
-                            {% if project %}Simpan Perubahan{% else %}Tambah Project{% endif %}
+                            {% if award %}Simpan Perubahan{% else %}Tambah Award{% endif %}
                         </button>
-                        <a href="{% url 'main:show_project' %}" class="button button-secondary">Batal</a>
+                        <a href="{% url 'main:show_award' %}" class="button button-secondary">Batal</a>
                     </div>
                 </form>
             </div>

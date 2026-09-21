@@ -1,6 +1,6 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,20 +10,31 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
+    {% with current=request.resolver_match.url_name|default:'' %}
     <header class="site-header">
         <div class="container">
             <a href="{% url 'main:show_main' %}" class="brand">{{ name }}</a>
             <nav>
-                <a href="{% url 'main:show_main' %}">Profile</a>
-                <a href="{% url 'main:show_experience' %}">Experience</a>
-                <a href="{% url 'main:show_project' %}">Project</a>
-                <a href="{% url 'main:show_award' %}">Award</a>
+                <a href="{% url 'main:show_main' %}" {% if current == 'show_main' %}aria-current="page"{% endif %}>Profile</a>
+                <a href="{% url 'main:show_experience' %}" {% if current == 'show_experience' %}aria-current="page"{% endif %}>Experience</a>
+                <a href="{% url 'main:show_project' %}" {% if 'project' in current %}aria-current="page"{% endif %}>Project</a>
+                <a href="{% url 'main:show_award' %}" {% if 'award' in current %}aria-current="page"{% endif %}>Award</a>
             </nav>
         </div>
     </header>
+    {% endwith %}
+
+    {% if messages %}
+    <div class="toast-stack" role="status" aria-live="polite">
+        {% for message in messages %}
+        <p class="toast toast--{{ message.tags }}">{{ message }}</p>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     {% block content %}
     {% endblock content %}

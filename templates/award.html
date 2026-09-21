@@ -7,9 +7,37 @@
         <section class="experience-section" id="award">
             <div class="container">
                 <p class="section-kicker">Penghargaan dan Prestasi</p>
-                <h1>Award</h1>
+                <div class="project-header">
+                    <h1>Award</h1>
+                    <a href="{% url 'main:create_award' %}" class="button project-add-button">
+                        <span aria-hidden="true">+</span>
+                        Tambah Award
+                    </a>
+                </div>
 
-                <div class="experience-grid">
+                <form method="get" action="{% url 'main:show_award' %}" class="project-search">
+                    {% if active_level %}<input type="hidden" name="level" value="{{ active_level }}">{% endif %}
+                    <input type="search"
+                        name="q"
+                        value="{{ search_query }}"
+                        placeholder="Cari nama lomba atau penyelenggara"
+                        class="project-search__input"
+                        aria-label="Cari nama lomba atau penyelenggara">
+                    <button type="submit" class="button">Cari</button>
+                </form>
+
+                {% if level_filters|length > 1 %}
+                <nav class="award-filter" aria-label="Filter berdasarkan tingkat">
+                    <a href="{% url 'main:show_award' %}{% if search_query %}?q={{ search_query|urlencode }}{% endif %}"
+                        {% if not active_level %}aria-current="true"{% endif %}>Semua</a>
+                    {% for level in level_filters %}
+                    <a href="?level={{ level.value }}{% if search_query %}&amp;q={{ search_query|urlencode }}{% endif %}"
+                        {% if active_level == level.value %}aria-current="true"{% endif %}>{{ level.label }}</a>
+                    {% endfor %}
+                </nav>
+                {% endif %}
+
+                <div class="experience-grid award-grid">
                     {% for award in award_list %}
                     <article class="experience-card">
                         <span class="experience-category">
@@ -19,11 +47,23 @@
                         <p class="experience-description">
                             {{ award.issuer }}
                         </p>
+
+                        <div class="project-card-actions">
+                            <div class="project-actions">
+                                <div class="card-actions">
+                                    <a href="{% url 'main:update_award' award.id %}" class="button button-ghost button-small">Edit</a>
+                                    {% url 'main:delete_award' award.id as delete_url %}
+                                    {% include "components/delete_modal.html" with modal_id=award.id item_title=award.title action_url=delete_url noun="penghargaan" %}
+                                </div>
+                            </div>
+                        </div>
                     </article>
                     {% empty %}
-                    <p class="empty-state">
-                        Belum ada penghargaan yang ditambahkan.
-                    </p>
+                        {% if search_query or active_level %}
+                            <p class="empty-state">Tidak ada penghargaan yang cocok dengan filter ini.</p>
+                        {% else %}
+                            <p class="empty-state">Belum ada penghargaan yang ditambahkan.</p>
+                        {% endif %}
                     {% endfor %}
                 </div>
             </div>

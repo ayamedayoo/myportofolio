@@ -47,7 +47,11 @@
                                     <p class="experience-status">Selesai</p>
                                 {% endif %}
                                 
-                                {% include "components/project_delete_modal.html" with project=project %}
+                                <div class="card-actions">
+                                    <a href="{% url 'main:update_project' project.id %}" class="button button-ghost button-small">Edit</a>
+                                    {% url 'main:delete_project' project.id as delete_url %}
+                                    {% include "components/delete_modal.html" with modal_id=project.id item_title=project.title action_url=delete_url noun="proyek" %}
+                                </div>
                             </div>
                         </div>
                     </article>
@@ -59,15 +63,13 @@
                         {% endif %}
                     {% endfor %}
                 </div>
+
+                <p class="json-hint">
+                    Data di halaman ini diambil dari
+                    <a href="{% url 'main:get_projects_json' %}{% if title_query %}?title={{ title_query|urlencode }}{% endif %}">endpoint JSON</a>
+                    lalu dideserialisasi.
+                </p>
             </div>
         </section>
     </main>
 {% endblock content %}
-
-    <footer class="site-footer">
-        <div class="container">
-            <p>&copy; 2026 {{ name }}. Fakultas Ilmu Komputer, Universitas Indonesia.</p>
-        </div>
-    </footer>
-</body>
-</html>

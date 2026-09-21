@@ -1,0 +1,51 @@
+{% comment %}
+Modal konfirmasi hapus yang bisa dipakai ulang untuk data apa pun.
+Parameter: modal_id, item_title, action_url, noun (mis. "proyek", "penghargaan").
+Memakai Popover API bawaan browser, jadi tidak butuh JavaScript.
+{% endcomment %}
+<button type="button"
+    class="button button-danger button-small"
+    popovertarget="delete-{{ modal_id }}"
+    aria-label="Hapus {{ item_title }}">
+    Hapus
+</button>
+
+<div id="delete-{{ modal_id }}"
+    class="delete-modal"
+    popover="auto"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="delete-title-{{ modal_id }}">
+
+    <button type="button"
+        class="delete-modal__backdrop"
+        popovertarget="delete-{{ modal_id }}"
+        popovertargetaction="hide"
+        aria-label="Tutup konfirmasi hapus"></button>
+
+    <div class="delete-modal__content">
+        <button type="button"
+            class="delete-modal__close"
+            popovertarget="delete-{{ modal_id }}"
+            popovertargetaction="hide"
+            aria-label="Tutup konfirmasi hapus">&times;</button>
+
+        <h2 id="delete-title-{{ modal_id }}">Hapus {{ noun }}?</h2>
+        <p>
+            Kamu yakin ingin menghapus <strong>{{ item_title }}</strong>?
+            Data yang sudah dihapus tidak bisa dikembalikan.
+        </p>
+
+        <div class="delete-modal__actions">
+            <button type="button"
+                class="button button-secondary"
+                popovertarget="delete-{{ modal_id }}"
+                popovertargetaction="hide">Batal</button>
+
+            <form method="post" action="{{ action_url }}">
+                {% csrf_token %}
+                <button type="submit" class="button button-danger">Ya, Hapus</button>
+            </form>
+        </div>
+    </div>
+</div>
