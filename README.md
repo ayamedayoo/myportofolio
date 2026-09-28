@@ -25,6 +25,44 @@ Halaman yang ada saat ini:
 | Tugas 2 | Model `Experience`, `Project`, dan `Award`, halaman untuk tiap model, unit test, dan script `populate_data.py` untuk isi data awal dari CV. |
 | Tutorial 3 | Template dasar `base.html`, form tambah proyek, hapus proyek, dan data proyek yang disajikan lewat JSON. |
 | Tugas 3 | Refactor template, CRUD lengkap + JSON untuk bagian Award, edit proyek, JSON untuk semua data, dan beberapa perbaikan tampilan (detail di bawah). |
+| Tutorial 4 | Register, login, dan logout memakai sistem akun bawaan Django. Cookie `last_login` untuk mencatat waktu login terakhir. Tombol star dan pembatasan akses di halaman Project. |
+| Tugas 4 | Empat peran pengguna (pengunjung, pengguna biasa, Editor, pemilik) untuk Award dan Project. Tombol star di Award. Tombol aksi disembunyikan untuk yang tidak berhak. |
+
+### Tugas 4: Hak Akses dan Fitur Star
+
+Di tugas ini, website sudah bisa mengenali siapa yang sedang membukanya. Semua orang tetap bisa membaca isi portofolio. Yang dibatasi hanya tindakan yang mengubah data, seperti menambah, mengubah, dan menghapus.
+
+Ada empat peran pengguna. Tabel berikut menunjukkan apa saja yang boleh dilakukan setiap peran.
+
+| Peran | Membaca data | Memberi star | Mengubah data | Menambah dan menghapus data |
+| --- | --- | --- | --- | --- |
+| Pengunjung (belum login) | Bisa | Harus login dulu | Harus login dulu | Harus login dulu |
+| Pengguna biasa | Bisa | Bisa | Tidak (403) | Tidak (403) |
+| Editor | Bisa | Bisa | Bisa | Tidak (403) |
+| Pemilik (superuser) | Bisa | Bisa | Bisa | Bisa |
+
+Pembatasan ini berlaku untuk halaman Award dan Project.
+
+#### Cara kerjanya
+
+1. Semua aturan peran ada di satu file, yaitu `main/roles.py`. Di sana ada fungsi kecil seperti `can_create`, `can_update`, dan `can_delete`. Setiap fungsi menjawab satu pertanyaan sederhana, misalnya "apakah akun ini boleh mengubah data?". Aturan dikumpulkan di satu tempat supaya view dan template selalu memakai aturan yang sama.
+
+2. File yang sama juga berisi dekorator `role_required`. Dekorator ini dipasang di atas view yang mengubah data. Kalau pengunjung belum login, ia diarahkan ke halaman login. Kalau pengguna sudah login tetapi tidak punya hak, server menolak permintaannya dengan kode 403 Forbidden.
+
+3. Peran Editor memakai fitur Group bawaan Django. Grup bernama `Editor` dibuat otomatis oleh migrasi, jadi tidak perlu dibuat manual. Untuk menjadikan seseorang Editor, pemilik cukup membuka Django Admin, memilih akun orang itu, lalu memasukkannya ke grup Editor. Di kode, keanggotaan grup dicek dengan `user.groups.filter(name="Editor").exists()`.
+
+4. Tombol Tambah, Edit, dan Hapus hanya muncul untuk orang yang boleh memakainya. Template mendapat informasi hak akses dari context processor `user_roles`, jadi setiap halaman bisa langsung memakai variabel seperti `can_update`. Menyembunyikan tombol hanya soal tampilan. Pengamanan yang sebenarnya tetap ada di server, jadi orang yang mengetik alamat edit langsung di browser tetap ditolak.
+
+5. Model `Award` dan `Project` punya field `starred_by`. Field ini berupa `ManyToManyField` ke model `User`, karena satu data bisa diberi star oleh banyak orang dan satu orang bisa memberi star ke banyak data. Setiap akun hanya bisa memberi satu star per data. Kalau tombolnya ditekan lagi, star-nya dibatalkan. Tombol star memakai form POST dengan `{% csrf_token %}`, dan di tombolnya terlihat jumlah star serta tulisan "Star" atau "Unstar".
+
+6. Endpoint JSON dari Tugas 3 tetap berjalan. Daftar pemberi star ditampilkan sebagai username, bukan id dari database. Data pribadi seperti password dan email tidak ikut dikirim.
+
+#### Cara mencoba setiap peran
+
+1. Buka `/award/` tanpa login. Datanya bisa dibaca, tetapi tombol Tambah, Edit, dan Hapus tidak muncul. Menekan tombol star akan membawa kamu ke halaman login.
+2. Daftar akun baru lewat `/register/`, lalu login. Sekarang kamu bisa memberi star. Kalau kamu membuka `/award/add/` secara langsung, hasilnya 403.
+3. Masukkan akun tadi ke grup Editor lewat `/admin/`. Setelah login ulang, tombol Edit muncul dan bisa dipakai, tetapi tombol Tambah dan Hapus tetap tidak ada.
+4. Login dengan akun superuser. Semua tombol muncul dan semua aksi bisa dipakai.
 
 
 ### Endpoint
@@ -35,6 +73,9 @@ Halaman yang ada saat ini:
 | `/award/add/` | Form tambah award |
 | `/award/<uuid>/edit/` | Form edit award |
 | `/award/<uuid>/delete/` | Hapus award (POST) |
+| `/award/<uuid>/star/` | Beri atau batalkan star pada award (POST, harus login) |
+| `/project/<uuid>/star/` | Beri atau batalkan star pada proyek (POST, harus login) |
+| `/register/`, `/login/`, `/logout/` | Daftar akun, login, dan logout |
 | `/project/add/`, `/project/<uuid>/edit/`, `/project/<uuid>/delete/` | Tambah, edit, dan hapus proyek |
 | `/api/awards/` | Semua award dalam JSON, mendukung `?level=` dan `?q=` |
 | `/api/awards/<uuid>/` | Satu award dalam JSON |
@@ -65,9 +106,14 @@ Halaman yang ada saat ini:
    python populate_data.py
    python manage.py runserver
    ```
-   Kalau sebelumnya sudah pernah menjalankan proyek ini, `migrate` tetap wajib dijalankan ulang karena Tugas 3 menambah kolom baru di tabel Award.
-6. Buka `http://localhost:8000/` di browser.
-7. Untuk menjalankan unit test:
+   Kalau sebelumnya sudah pernah menjalankan proyek ini, `migrate` tetap wajib dijalankan ulang. Tugas 4 menambah tabel star dan grup Editor.
+6. Buat akun pemilik (superuser) supaya bisa menambah, mengubah, dan menghapus data:
+   ```
+   python manage.py createsuperuser
+   ```
+7. Kalau ingin mencoba peran Editor: daftarkan akun baru lewat `/register/`, login ke `/admin/` memakai akun superuser, buka menu Users, pilih akun tadi, lalu masukkan ke grup Editor.
+8. Buka `http://localhost:8000/` di browser.
+9. Untuk menjalankan unit test:
    ```
    python manage.py test
    ```
@@ -78,14 +124,20 @@ Proyek di-deploy ke PWS Fasilkom UI (Dockerfile + gunicorn, binding ke port 80 s
 
 ## AI Disclosure
 
-Saya memakai **Claude Code** (lewat aplikasi desktop Claude) sebagai teman diskusi dan pembimbing selama mengerjakan proyek ini. Posisinya lebih ke "asdos pribadi" yang bisa ditanya kapan saja: memberi rekomendasi, menunjukkan arah, dan membantu menyusun draf kode. Keputusan, pengecekan, dan tanggung jawab atas hasil akhirnya tetap di saya.
+Saya memakai Claude Code (lewat aplikasi desktop Claude) sebagai teman diskusi dan pembimbing selama mengerjakan proyek ini. Posisinya lebih ke "asdos pribadi" yang bisa ditanya kapan saja. Ia memberi rekomendasi, menunjukkan arah, dan membantu menyusun draf kode. Keputusan, pengecekan, dan tanggung jawab atas hasil akhirnya tetap di saya.
 
-**Tugas 1**
+Tugas 1
 
 - Debugging deployment: deployment ke PWS sempat gagal (404, lalu Bad Gateway). Saya minta Claude membaca source code dan menelusuri penyebabnya. Ketemu bahwa repo belum punya Dockerfile dan `ALLOWED_HOSTS` salah tulis. Claude juga merujuk dokumentasi PWS untuk memastikan port yang benar (80, bukan 8080) sebelum saya commit perbaikannya.
 
-**Tugas 3**
-1. Claude membantu saya untuk melakukan debugging, melakukan test, melakukan konsultasi, dan melakukan pembantuan jika aku mengalami eror
+Tugas 3
+
+- Claude membantu saya melakukan debugging, menjalankan test, berkonsultasi, dan mencari jalan keluar saat saya mengalami error.
+
+Tugas 4
+
+- Alat yang saya pakai adalah Claude Code lewat aplikasi desktop Claude.
+- Cara saya memakainya digunakan untuk melakukan test dan debugging, cek eror, dan membantu saya untuk perbaikan
 
 
 
