@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block meta %}
+    <title>Register - {{ name }}</title>
+{% endblock meta %}
+{% block content %}
+    <main>
+        <section class="experience-section">
+            <div class="container form-container">
+                <p class="section-kicker">Akun baru</p>
+                <h1>Buat Akun</h1>
+                <form method="post" action="{% url 'main:register' %}" class="project-form">
+                    {% csrf_token %}
+                    {% include "components/form_fields.html" %}
+                    <div class="form-actions">
+                        <button type="submit" class="button">Daftar</button>
+                    </div>
+                </form>
+                <p class="auth-switch">Sudah punya akun? <a href="{% url 'main:login' %}">Login di sini</a>.</p>
+            </div>
+        </section>
+    </main>
+{% endblock content %}

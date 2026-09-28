@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block meta %}
+<title>Achievements - Portofolio</title>
+{% endblock meta %}
+
+{% block content %}
+<main class="container">
+    <section class="section">
+        <header class="section__header">
+            <h1 class="section__title">Achievements</h1>
+            <p class="section__subtitle">A list of achievements and accomplishments.</p>
+        </header>
+
+        {% if not achievements %}
+        <div class="empty-state">
+            <p>No achievements have been added yet.</p>
+        </div>
+        {% else %}
+        <div class="grid">
+            {% for achievement in achievements %}
+            <article class="card">
+                <div class="card__content">
+                    <h3 class="card__title">{{ achievement.title }}</h3>
+                    <p class="card__meta">{{ achievement.get_level_display }} | {{ achievement.achieved_at|date:"F Y" }}</p>
+                    <p class="card__desc">{{ achievement.description }}</p>
+                    {% if achievement.is_top_tier %}
+                    <span class="badge badge--featured">Top Tier</span>
+                    {% endif %}
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </section>
+</main>
+{% endblock content %}

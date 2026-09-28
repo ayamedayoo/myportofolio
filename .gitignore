@@ -1,6 +1,7 @@
 # Environments & Credentials
 env/
 venv/
+.venv/
 .env*
 # Django Database & Cache
 db.sqlite3
@@ -14,3 +15,4 @@ __pycache__/
 
 # Berkas soal tugas (tidak perlu masuk repo)
 tugas-*.pdf
+tutorial-*.pdf

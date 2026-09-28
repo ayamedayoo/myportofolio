@@ -1,4 +1,5 @@
 import uuid
+from django.contrib.auth.models import User
 from django.db import models
 from django.core.validators import MaxValueValidator, MinValueValidator
 
@@ -33,6 +34,8 @@ class Project(models.Model):
     role = models.CharField(max_length=255)
     started_at = models.DateField()
     ended_at = models.DateField(blank=True, null=True)
+    # Satu proyek bisa di-star banyak pengguna, dan satu pengguna bisa mem-star banyak proyek
+    starred_by = models.ManyToManyField(User, related_name="starred_projects", blank=True)
 
     def __str__(self):
         return self.title
@@ -75,4 +78,23 @@ class Award(models.Model):
 
     def __str__(self):
         return self.title
-
+
+class Achievement(models.Model):
+    LEVEL_CHOICES = [
+        ('campus', 'Campus'),
+        ('national', 'National'),
+        ('international', 'International'),
+    ]
+
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    level = models.CharField(max_length=20, choices=LEVEL_CHOICES, default='campus')
+    achieved_at = models.DateField()
+
+    @property
+    def is_top_tier(self):
+        return self.level in ['national', 'international']
+
+    def __str__(self):
+        return self.title
+

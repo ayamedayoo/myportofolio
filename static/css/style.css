@@ -764,3 +764,43 @@ h1, .brand {
     flex-wrap: wrap;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Autentikasi & Star (Tutorial 04)
+   --------------------------------------------------------------------------- */
+.nav-user {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--accent-dark);
+}
+
+.auth-switch {
+    margin-top: 1.25rem;
+    color: var(--text-muted);
+}
+
+.auth-switch a {
+    color: var(--accent-dark);
+}
+
+.star-form {
+    display: inline;
+}
+
+.button-star {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--ink);
+}
+
+.button-star.is-starred {
+    background: var(--accent);
+}
+
+.star-count {
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.25);
+    font-size: 0.8rem;
+}

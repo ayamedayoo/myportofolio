@@ -9,11 +9,13 @@
                 <p class="section-kicker">Karya dan pencapaian</p>
                 <div class="project-header">
                     <h1>Project</h1>
-                    <a href="{% url 'main:create_project' %}"
-                        class="button project-add-button">
-                        <span aria-hidden="true">+</span>
-                        Tambah Proyek
-                    </a>
+                    {% if user.is_superuser %}
+                        <a href="{% url 'main:create_project' %}"
+                            class="button project-add-button">
+                            <span aria-hidden="true">+</span>
+                            Tambah Proyek
+                        </a>
+                    {% endif %}
                 </div>
 
                 <form method="get"
@@ -48,9 +50,12 @@
                                 {% endif %}
                                 
                                 <div class="card-actions">
-                                    <a href="{% url 'main:update_project' project.id %}" class="button button-ghost button-small">Edit</a>
-                                    {% url 'main:delete_project' project.id as delete_url %}
-                                    {% include "components/delete_modal.html" with modal_id=project.id item_title=project.title action_url=delete_url noun="proyek" %}
+                                    {% include "components/project_star.html" with project=project %}
+                                    {% if user.is_superuser %}
+                                        <a href="{% url 'main:update_project' project.id %}" class="button button-ghost button-small">Edit</a>
+                                        {% url 'main:delete_project' project.id as delete_url %}
+                                        {% include "components/delete_modal.html" with modal_id=project.id item_title=project.title action_url=delete_url noun="proyek" %}
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>
