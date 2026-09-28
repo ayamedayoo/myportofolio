@@ -1,6 +1,7 @@
 import uuid
 from datetime import date
 
+from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -132,6 +133,8 @@ class AwardCrudTest(TestCase):
             placement="first",
             level="national",
         )
+        owner = User.objects.create_superuser("pemilik", password="Pemilik-Test-123")
+        self.client.force_login(owner)
         self.valid_data = {
             "title": "Finalist Hackathon",
             "issuer": "Fasilkom UI",
@@ -241,6 +244,8 @@ class ProjectUpdateAndJsonTest(TestCase):
             role="Fullstack Developer",
             started_at=date(2026, 8, 1),
         )
+        owner = User.objects.create_superuser("pemilik", password="Pemilik-Test-123")
+        self.client.force_login(owner)
 
     def test_update_project(self):
         data = {
@@ -272,3 +277,81 @@ class ProjectUpdateAndJsonTest(TestCase):
         Experience.objects.create(title="Asdos PBP", description="Membantu tutorial.")
         response = self.client.get(reverse("main:get_experiences_json"))
         self.assertEqual(response.json()[0]["fields"]["title"], "Asdos PBP")
+
+
+class RoleAccessTest(TestCase):
+    """Tes hak akses keempat peran pada bagian Award (Tugas 4)."""
+
+    def setUp(self):
+        self.award = Award.objects.create(title="Juara Hackathon", issuer="Fasilkom UI", year=2025)
+        self.user = User.objects.create_user("biasa", password="Biasa-Test-123")
+        self.editor = User.objects.create_user("editor", password="Editor-Test-123")
+        self.editor.groups.add(Group.objects.get(name="Editor"))
+        self.owner = User.objects.create_superuser("pemilik", password="Pemilik-Test-123")
+        self.create_url = reverse("main:create_award")
+        self.update_url = reverse("main:update_award", args=[self.award.id])
+        self.delete_url = reverse("main:delete_award", args=[self.award.id])
+        self.star_url = reverse("main:toggle_award_star", args=[self.award.id])
+
+    def test_editor_group_is_created_by_migration(self):
+        self.assertTrue(Group.objects.filter(name="Editor").exists())
+
+    def test_visitor_is_redirected_to_login(self):
+        for url in (self.create_url, self.update_url):
+            response = self.client.get(url)
+            self.assertRedirects(response, f"/login/?next={url}", fetch_redirect_response=False)
+        for url in (self.delete_url, self.star_url):
+            response = self.client.post(url)
+            self.assertRedirects(response, f"/login/?next={url}", fetch_redirect_response=False)
+
+    def test_visitor_can_read(self):
+        response = self.client.get(reverse("main:show_award"))
+        self.assertContains(response, "Juara Hackathon")
+        self.assertNotContains(response, self.update_url)
+        self.assertNotContains(response, self.delete_url)
+        self.assertNotContains(response, self.create_url)
+
+    def test_regular_user_gets_403_on_changes(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(self.create_url).status_code, 403)
+        self.assertEqual(self.client.get(self.update_url).status_code, 403)
+        self.assertEqual(self.client.post(self.delete_url).status_code, 403)
+        self.assertTrue(Award.objects.filter(pk=self.award.pk).exists())
+
+    def test_editor_can_update_but_not_create_or_delete(self):
+        self.client.force_login(self.editor)
+        self.assertEqual(self.client.get(self.update_url).status_code, 200)
+        self.assertEqual(self.client.get(self.create_url).status_code, 403)
+        self.assertEqual(self.client.post(self.delete_url).status_code, 403)
+
+        response = self.client.get(reverse("main:show_award"))
+        self.assertContains(response, self.update_url)
+        self.assertNotContains(response, self.delete_url)
+        self.assertNotContains(response, self.create_url)
+
+    def test_owner_sees_all_controls(self):
+        self.client.force_login(self.owner)
+        response = self.client.get(reverse("main:show_award"))
+        self.assertContains(response, self.create_url)
+        self.assertContains(response, self.update_url)
+        self.assertContains(response, self.delete_url)
+
+    def test_star_toggles_once_per_user(self):
+        self.client.force_login(self.user)
+        self.client.post(self.star_url)
+        self.assertEqual(self.award.starred_by.count(), 1)
+        response = self.client.get(reverse("main:show_award"))
+        self.assertContains(response, "Unstar")
+
+        self.client.post(self.star_url)
+        self.assertEqual(self.award.starred_by.count(), 0)
+
+    def test_star_requires_post(self):
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(self.star_url).status_code, 405)
+
+    def test_awards_json_shows_username_not_user_id(self):
+        self.award.starred_by.add(self.user)
+        fields = self.client.get(reverse("main:get_awards_json")).json()[0]["fields"]
+        self.assertEqual(fields["starred_by"], [["biasa"]])
+        self.assertNotIn("password", str(fields))

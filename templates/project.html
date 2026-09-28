@@ -9,7 +9,7 @@
                 <p class="section-kicker">Karya dan pencapaian</p>
                 <div class="project-header">
                     <h1>Project</h1>
-                    {% if user.is_superuser %}
+                    {% if can_create %}
                         <a href="{% url 'main:create_project' %}"
                             class="button project-add-button">
                             <span aria-hidden="true">+</span>
@@ -50,9 +50,12 @@
                                 {% endif %}
                                 
                                 <div class="card-actions">
-                                    {% include "components/project_star.html" with project=project %}
-                                    {% if user.is_superuser %}
+                                    {% url 'main:toggle_star' project.id as star_url %}
+                                    {% include "components/star_button.html" with item=project action_url=star_url %}
+                                    {% if can_update %}
                                         <a href="{% url 'main:update_project' project.id %}" class="button button-ghost button-small">Edit</a>
+                                    {% endif %}
+                                    {% if can_delete %}
                                         {% url 'main:delete_project' project.id as delete_url %}
                                         {% include "components/delete_modal.html" with modal_id=project.id item_title=project.title action_url=delete_url noun="proyek" %}
                                     {% endif %}

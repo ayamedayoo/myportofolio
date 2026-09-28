@@ -9,10 +9,12 @@
                 <p class="section-kicker">Penghargaan dan Prestasi</p>
                 <div class="project-header">
                     <h1>Award</h1>
-                    <a href="{% url 'main:create_award' %}" class="button project-add-button">
-                        <span aria-hidden="true">+</span>
-                        Tambah Award
-                    </a>
+                    {% if can_create %}
+                        <a href="{% url 'main:create_award' %}" class="button project-add-button">
+                            <span aria-hidden="true">+</span>
+                            Tambah Award
+                        </a>
+                    {% endif %}
                 </div>
 
                 <form method="get" action="{% url 'main:show_award' %}" class="project-search">
@@ -51,9 +53,15 @@
                         <div class="project-card-actions">
                             <div class="project-actions">
                                 <div class="card-actions">
-                                    <a href="{% url 'main:update_award' award.id %}" class="button button-ghost button-small">Edit</a>
-                                    {% url 'main:delete_award' award.id as delete_url %}
-                                    {% include "components/delete_modal.html" with modal_id=award.id item_title=award.title action_url=delete_url noun="penghargaan" %}
+                                    {% url 'main:toggle_award_star' award.id as star_url %}
+                                    {% include "components/star_button.html" with item=award action_url=star_url %}
+                                    {% if can_update %}
+                                        <a href="{% url 'main:update_award' award.id %}" class="button button-ghost button-small">Edit</a>
+                                    {% endif %}
+                                    {% if can_delete %}
+                                        {% url 'main:delete_award' award.id as delete_url %}
+                                        {% include "components/delete_modal.html" with modal_id=award.id item_title=award.title action_url=delete_url noun="penghargaan" %}
+                                    {% endif %}
                                 </div>
                             </div>
                         </div>

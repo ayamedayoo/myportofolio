@@ -8,12 +8,14 @@ class AwardAdmin(admin.ModelAdmin):
     list_display = ("title", "issuer", "year", "placement", "level", "is_featured")
     list_filter = ("placement", "level", "is_featured")
     search_fields = ("title", "issuer")
+    filter_horizontal = ("starred_by",)
 
 
 @admin.register(Project)
 class ProjectAdmin(admin.ModelAdmin):
     list_display = ("title", "role", "started_at", "ended_at")
     search_fields = ("title",)
+    filter_horizontal = ("starred_by",)
 
 
 @admin.register(Experience)

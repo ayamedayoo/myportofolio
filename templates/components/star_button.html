@@ -1,0 +1,15 @@
+{% comment %}
+Tombol star/unstar yang bisa dipakai ulang untuk data apa pun yang punya field starred_by.
+Parameter: item (objek yang di-star), action_url (URL view toggle star).
+Pengunjung yang belum login tetap melihat tombolnya, lalu diarahkan ke halaman login oleh @login_required.
+{% endcomment %}
+<form method="post" action="{{ action_url }}" class="star-form">
+    {% csrf_token %}
+    <button type="submit"
+        class="button button-small button-star{% if user in item.starred_by.all %} is-starred{% endif %}"
+        title="{% if item.starred_by.all %}Dibintangi oleh {{ item.starred_by.all|join:', ' }}{% else %}Jadilah yang pertama memberi star{% endif %}">
+        <span aria-hidden="true">&#9733;</span>
+        {% if user in item.starred_by.all %}Unstar{% else %}Star{% endif %}
+        <span class="star-count">{{ item.starred_by.count }}</span>
+    </button>
+</form>

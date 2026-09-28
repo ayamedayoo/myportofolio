@@ -5,13 +5,13 @@ from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.core import serializers
-from django.core.exceptions import PermissionDenied
 from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
 from main.forms import AwardForm, ProjectForm
+from main.roles import LOGIN_URL, can_create, can_delete, can_update, role_required
 from main.models import Award, Experience, Project, Achievement
 
 
@@ -29,6 +29,14 @@ def _json_response(queryset):
         serializers.serialize("json", queryset, use_natural_foreign_keys=True),
         content_type="application/json",
     )
+
+
+def _toggle_star(obj, user):
+    """Beri star kalau belum pernah, batalkan kalau sudah. Satu pengguna maksimal satu star."""
+    if obj.starred_by.filter(pk=user.pk).exists():
+        obj.starred_by.remove(user)
+    else:
+        obj.starred_by.add(user)
 
 
 def _deserialize(response):
@@ -116,10 +124,8 @@ def show_project(request):
     return render(request, "project.html", context)
 
 
-@login_required(login_url="/login/")
+@role_required(can_create)
 def create_project(request):
-    if not request.user.is_superuser:
-        raise PermissionDenied
     form = ProjectForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         form.save()
@@ -128,11 +134,9 @@ def create_project(request):
     return render(request, "project_form.html", {"form": form})
 
 
-@login_required(login_url="/login/")
+@role_required(can_update)
 def update_project(request, project_id):
     """Ambil project berdasarkan id, tampilkan form berisi data lamanya, lalu simpan perubahannya."""
-    if not request.user.is_superuser:
-        raise PermissionDenied
     project = get_object_or_404(Project, pk=project_id)
     form = ProjectForm(request.POST or None, instance=project)
     if request.method == "POST" and form.is_valid():
@@ -142,27 +146,21 @@ def update_project(request, project_id):
     return render(request, "project_form.html", {"form": form, "project": project})
 
 
-@login_required(login_url="/login/")
+@role_required(can_delete)
 @require_POST
 def delete_project(request, project_id):
-    if not request.user.is_superuser:
-        raise PermissionDenied
     project = get_object_or_404(Project, pk=project_id)
     project.delete()
     messages.success(request, "Proyek berhasil dihapus!")
     return redirect("main:show_project")
 
 
-# Tanpa cek is_superuser: semua akun yang sudah login boleh memberi star
-@login_required(login_url="/login/")
+# Tanpa cek peran: semua akun yang sudah login boleh memberi star
+@login_required(login_url=LOGIN_URL)
 def toggle_star(request, project_id):
     project = get_object_or_404(Project, pk=project_id)
     if request.method == "POST":
-        # Kalau akun ini sudah pernah memberi star, batalkan star-nya. Kalau belum, tambahkan.
-        if project.starred_by.filter(pk=request.user.pk).exists():
-            project.starred_by.remove(request.user)
-        else:
-            project.starred_by.add(request.user)
+        _toggle_star(project, request.user)
     return redirect("main:show_project")
 
 
@@ -214,6 +212,7 @@ def show_award(request):
     return render(request, "award.html", context)
 
 
+@role_required(can_create)
 def create_award(request):
     form = AwardForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
@@ -223,6 +222,7 @@ def create_award(request):
     return render(request, "award_form.html", {"form": form})
 
 
+@role_required(can_update)
 def update_award(request, award_id):
     """Form update memakai ``instance`` agar field terisi data lama dan ``save()`` melakukan UPDATE, bukan INSERT."""
     award = get_object_or_404(Award, pk=award_id)
@@ -234,12 +234,21 @@ def update_award(request, award_id):
     return render(request, "award_form.html", {"form": form, "award": award})
 
 
+@role_required(can_delete)
 @require_POST
 def delete_award(request, award_id):
     award = get_object_or_404(Award, pk=award_id)
     title = award.title
     award.delete()
     messages.success(request, f"Penghargaan \"{title}\" berhasil dihapus.")
+    return redirect("main:show_award")
+
+
+@login_required(login_url=LOGIN_URL)
+@require_POST
+def toggle_award_star(request, award_id):
+    award = get_object_or_404(Award, pk=award_id)
+    _toggle_star(award, request.user)
     return redirect("main:show_award")
 
 

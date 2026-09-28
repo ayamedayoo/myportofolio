@@ -70,6 +70,8 @@ class Award(models.Model):
     description = models.TextField(blank=True)
     certificate_url = models.URLField(blank=True)
     is_featured = models.BooleanField(default=False)
+    # Pengguna yang memberi star. Satu pengguna maksimal satu star per award.
+    starred_by = models.ManyToManyField(User, related_name="starred_awards", blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
