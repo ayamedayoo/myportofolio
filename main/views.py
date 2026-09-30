@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.core import serializers
 from django.db.models import Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
@@ -115,11 +115,11 @@ def get_experiences_json(request):
 # ---------------------------------------------------------------------------
 
 def show_project(request):
-    """Render the project page from the JSON endpoint, optionally filtered by title."""
-    projects = _deserialize(get_projects_json(request))
+    """Render kerangka halaman project. Datanya diambil browser lewat AJAX dari ``get_projects_json``."""
     context = {
-        "project_list": projects,
         "title_query": request.GET.get("title", "").strip(),
+        # Form kosong untuk modal tambah proyek, hanya dipakai kalau pengguna boleh membuat data.
+        "form": ProjectForm(),
     }
     return render(request, "project.html", context)
 
@@ -164,12 +164,58 @@ def toggle_star(request, project_id):
     return redirect("main:show_project")
 
 
+@require_POST
+def create_project_ajax(request):
+    """Tambah proyek lewat AJAX. Balasannya selalu JSON supaya mudah dibaca JavaScript.
+
+    Sengaja tidak memakai ``role_required``: dekorator itu mengalihkan pengunjung ke halaman
+    login, dan ``fetch`` akan mengikuti pengalihan tersebut lalu menerima HTML berstatus 200.
+    """
+    if not can_create(request.user):
+        return JsonResponse(
+            {"message": "Hanya pemilik portofolio yang dapat menambahkan proyek."},
+            status=403,
+        )
+
+    form = ProjectForm(request.POST)
+    if form.is_valid():
+        project = form.save()
+        return JsonResponse(
+            {"message": "Proyek berhasil ditambahkan.", "pk": str(project.id)},
+            status=201,
+        )
+    return JsonResponse({"errors": form.errors.get_json_data()}, status=400)
+
+
 def get_projects_json(request):
-    projects = Project.objects.all().order_by('-started_at')
+    """Kembalikan daftar proyek dalam JSON, opsional difilter dengan ``?title=``.
+
+    JSON dirakit manual karena ``serializers.serialize`` tidak bisa menyisipkan informasi
+    yang bergantung pada pengguna yang sedang login, seperti ``is_starred``.
+    """
+    projects = Project.objects.prefetch_related("starred_by").order_by("-started_at")
     title_query = request.GET.get("title", "").strip()
     if title_query:
         projects = projects.filter(title__icontains=title_query)
-    return _json_response(projects)
+
+    data = []
+    for project in projects:
+        starred_usernames = [user.username for user in project.starred_by.all()]
+        data.append({
+            "pk": str(project.id),
+            "fields": {
+                "title": project.title,
+                "description": project.description,
+                "role": project.role,
+                "started_at": project.started_at.isoformat(),
+                "ended_at": project.ended_at.isoformat() if project.ended_at else None,
+                "is_ongoing": project.is_ongoing,
+                "star_count": len(starred_usernames),
+                "is_starred": request.user.is_authenticated and request.user.username in starred_usernames,
+                "starred_by_names": ", ".join(starred_usernames),
+            },
+        })
+    return JsonResponse(data, safe=False)
 
 
 def get_project_json_by_id(request, project_id):

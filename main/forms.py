@@ -3,6 +3,7 @@ from django.forms import (
     CheckboxInput, DateInput, ModelForm, NumberInput, Select, Textarea, TextInput, URLInput,
 )
 from django.utils import timezone
+from django.utils.html import strip_tags
 
 from main.models import Award, Project
 
@@ -53,6 +54,26 @@ class ProjectForm(ModelForm):
                 }
             ),
         }
+
+    # Lapisan pertahanan kedua terhadap XSS: tag HTML dibuang sejak data masuk.
+    # Pertahanan utamanya tetap escaping saat data ditampilkan.
+    def clean_title(self):
+        title = strip_tags(self.cleaned_data["title"]).strip()
+        if not title:
+            raise ValidationError("Nama proyek tidak boleh hanya berisi tag HTML.")
+        return title
+
+    def clean_role(self):
+        role = strip_tags(self.cleaned_data["role"]).strip()
+        if not role:
+            raise ValidationError("Peran tidak boleh hanya berisi tag HTML.")
+        return role
+
+    def clean_description(self):
+        description = strip_tags(self.cleaned_data["description"]).strip()
+        if not description:
+            raise ValidationError("Deskripsi tidak boleh hanya berisi tag HTML.")
+        return description
 
     def clean(self):
         cleaned_data = super().clean()

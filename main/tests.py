@@ -74,6 +74,7 @@ class MainTest(TestCase):
         self.assertTrue(project.is_ongoing)
 
     def test_project_page(self):
+        """Halaman project hanya berisi kerangka. Datanya diambil browser dari endpoint JSON."""
         Project.objects.create(
             title="Sistem Informasi Akademik",
             description="Membangun sistem akademik berbasis web.",
@@ -83,16 +84,19 @@ class MainTest(TestCase):
         response = self.client.get(reverse("main:show_project"))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "project.html")
-        self.assertContains(response, "Sistem Informasi Akademik")
-        self.assertContains(response, "Membangun sistem akademik")
-        self.assertContains(response, "Full Stack Developer")
-        self.assertContains(response, "Sedang berlangsung")
+        self.assertContains(response, 'id="grid"')
+        self.assertContains(response, reverse("main:get_projects_json"))
         self.assertContains(response, f'href="{reverse("main:show_main")}"')
+        self.assertNotContains(response, "Sistem Informasi Akademik")
+
+        fields = self.client.get(reverse("main:get_projects_json")).json()[0]["fields"]
+        self.assertEqual(fields["title"], "Sistem Informasi Akademik")
+        self.assertEqual(fields["role"], "Full Stack Developer")
+        self.assertTrue(fields["is_ongoing"])
 
     def test_empty_project_page(self):
         Project.objects.all().delete()
-        response = self.client.get(reverse("main:show_project"))
-        self.assertContains(response, "Belum ada proyek yang ditambahkan.")
+        self.assertEqual(self.client.get(reverse("main:get_projects_json")).json(), [])
 
     def test_award_model(self):
         award = Award.objects.create(
@@ -355,3 +359,85 @@ class RoleAccessTest(TestCase):
         fields = self.client.get(reverse("main:get_awards_json")).json()[0]["fields"]
         self.assertEqual(fields["starred_by"], [["biasa"]])
         self.assertNotIn("password", str(fields))
+
+
+class ProjectAjaxTest(TestCase):
+    """Tes endpoint AJAX halaman Project (Tutorial 5)."""
+
+    def setUp(self):
+        self.project = Project.objects.create(
+            title="Portfolio Website",
+            description="Website portofolio pribadi.",
+            role="Fullstack Developer",
+            started_at=date(2026, 8, 1),
+        )
+        self.user = User.objects.create_user("biasa", password="Biasa-Test-123")
+        self.owner = User.objects.create_superuser("pemilik", password="Pemilik-Test-123")
+        self.list_url = reverse("main:get_projects_json")
+        self.create_url = reverse("main:create_project_ajax")
+        self.valid_data = {
+            "title": "Aplikasi Kasir",
+            "description": "Aplikasi kasir sederhana.",
+            "role": "Backend Developer",
+            "started_at": "2026-09-01",
+        }
+
+    def test_projects_json_includes_star_info(self):
+        self.project.starred_by.add(self.user)
+
+        fields = self.client.get(self.list_url).json()[0]["fields"]
+        self.assertEqual(fields["star_count"], 1)
+        self.assertEqual(fields["starred_by_names"], "biasa")
+        self.assertFalse(fields["is_starred"])
+        self.assertNotIn("password", str(fields))
+
+        self.client.force_login(self.user)
+        fields = self.client.get(self.list_url).json()[0]["fields"]
+        self.assertTrue(fields["is_starred"])
+
+    def test_projects_json_filters_by_title(self):
+        self.assertEqual(len(self.client.get(self.list_url, {"title": "portfolio"}).json()), 1)
+        self.assertEqual(self.client.get(self.list_url, {"title": "tidak ada"}).json(), [])
+
+    def test_modal_only_for_owner(self):
+        page_url = reverse("main:show_project")
+        self.assertNotContains(self.client.get(page_url), 'id="add-project-modal"')
+        self.client.force_login(self.owner)
+        self.assertContains(self.client.get(page_url), 'id="add-project-modal"')
+
+    def test_create_ajax_requires_post(self):
+        self.client.force_login(self.owner)
+        self.assertEqual(self.client.get(self.create_url).status_code, 405)
+
+    def test_create_ajax_rejects_visitor_and_regular_user_with_json(self):
+        response = self.client.post(self.create_url, self.valid_data)
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("message", response.json())
+
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.post(self.create_url, self.valid_data).status_code, 403)
+        self.assertEqual(Project.objects.count(), 1)
+
+    def test_create_ajax_by_owner(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(self.create_url, self.valid_data)
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(Project.objects.filter(pk=response.json()["pk"], title="Aplikasi Kasir").exists())
+
+    def test_create_ajax_invalid_data_returns_errors(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(self.create_url, {**self.valid_data, "title": "   "})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("title", response.json()["errors"])
+
+    def test_form_strips_html_tags(self):
+        form = ProjectForm(data={**self.valid_data, "title": "Halo <b>dunia</b>"})
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data["title"], "Halo dunia")
+
+    def test_form_rejects_title_with_only_html(self):
+        self.client.force_login(self.owner)
+        payload = {**self.valid_data, "title": '<img src="x" onerror="alert(1)">'}
+        response = self.client.post(self.create_url, payload)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("title", response.json()["errors"])

@@ -27,6 +27,7 @@ Halaman yang ada saat ini:
 | Tugas 3 | Refactor template, CRUD lengkap + JSON untuk bagian Award, edit proyek, JSON untuk semua data, dan beberapa perbaikan tampilan (detail di bawah). |
 | Tutorial 4 | Register, login, dan logout memakai sistem akun bawaan Django. Cookie `last_login` untuk mencatat waktu login terakhir. Tombol star dan pembatasan akses di halaman Project. |
 | Tugas 4 | Empat peran pengguna (pengunjung, pengguna biasa, Editor, pemilik) untuk Award dan Project. Tombol star di Award. Tombol aksi disembunyikan untuk yang tidak berhak. |
+| Tutorial 5 | Notifikasi toast. Daftar proyek dimuat lewat AJAX dengan Fetch API. Pencarian proyek berjalan saat mengetik dengan debounce. Form tambah proyek ada di dalam modal dan dikirim tanpa reload halaman. Perlindungan XSS dengan escaping di JavaScript dan pembersihan input di server. |
 
 ### Tugas 4: Hak Akses dan Fitur Star
 
@@ -77,9 +78,10 @@ Pembatasan ini berlaku untuk halaman Award dan Project.
 | `/project/<uuid>/star/` | Beri atau batalkan star pada proyek (POST, harus login) |
 | `/register/`, `/login/`, `/logout/` | Daftar akun, login, dan logout |
 | `/project/add/`, `/project/<uuid>/edit/`, `/project/<uuid>/delete/` | Tambah, edit, dan hapus proyek |
+| `/project/add-ajax/` | Tambah proyek lewat AJAX (POST, hanya pemilik), balasannya JSON |
 | `/api/awards/` | Semua award dalam JSON, mendukung `?level=` dan `?q=` |
 | `/api/awards/<uuid>/` | Satu award dalam JSON |
-| `/api/projects/` | Semua proyek dalam JSON, mendukung `?title=` |
+| `/api/projects/` | Semua proyek dalam JSON beserta jumlah star, mendukung `?title=` |
 | `/api/projects/<uuid>/` | Satu proyek dalam JSON |
 | `/api/experiences/` | Semua experience dalam JSON |
 

@@ -1,0 +1,12 @@
+{% load static %}
+{% comment %}
+Notifikasi toast yang bisa dipanggil dari halaman mana pun lewat showToast(judul, pesan, tipe).
+popover="manual" menaruh toast di top layer browser, jadi selalu tampil di atas modal.
+{% endcomment %}
+<div id="toast-component" class="toast-component toast-hidden" popover="manual" role="status" aria-live="polite">
+    <div class="toast-content">
+        <h3 id="toast-title" class="toast-title"></h3>
+        <p id="toast-message" class="toast-message"></p>
+    </div>
+</div>
+<script src="{% static 'js/toast.js' %}"></script>
