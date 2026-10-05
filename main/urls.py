@@ -1,7 +1,7 @@
 from django.urls import path
 
 from main.views import (
-    create_award, create_project, create_project_ajax, delete_award, delete_project,
+    create_award, create_award_ajax, create_project, create_project_ajax, delete_award, delete_project,
     get_award_json_by_id, get_awards_json, get_experiences_json,
     get_project_json_by_id, get_projects_json,
     show_award, show_experience, show_main, show_project,
@@ -28,6 +28,7 @@ urlpatterns = [
 
     path("award/", show_award, name="show_award"),
     path("award/add/", create_award, name="create_award"),
+    path("award/add-ajax/", create_award_ajax, name="create_award_ajax"),
     path("award/<uuid:award_id>/edit/", update_award, name="update_award"),
     path("award/<uuid:award_id>/delete/", delete_award, name="delete_award"),
     path("award/<uuid:award_id>/star/", toggle_award_star, name="toggle_award_star"),

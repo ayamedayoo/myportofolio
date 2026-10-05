@@ -11,6 +11,7 @@
                 {% comment %}Pesan "akun berhasil dibuat" sudah tampil lewat toast di base.html.{% endcomment %}
                 <form method="post" action="{% url 'main:login' %}" class="project-form">
                     {% csrf_token %}
+                    {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
                     {% include "components/form_fields.html" %}
                     <div class="form-actions">
                         <button type="submit" class="button">Login</button>

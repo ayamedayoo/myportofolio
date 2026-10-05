@@ -128,6 +128,23 @@ class AwardForm(ModelForm):
             "is_featured": CheckboxInput(),
         }
 
+    # Lapisan pertahanan kedua terhadap XSS: tag HTML dibuang sejak data masuk.
+    def clean_title(self):
+        title = strip_tags(self.cleaned_data["title"]).strip()
+        if not title:
+            raise ValidationError("Nama penghargaan tidak boleh hanya berisi tag HTML.")
+        return title
+
+    def clean_issuer(self):
+        issuer = strip_tags(self.cleaned_data["issuer"]).strip()
+        if not issuer:
+            raise ValidationError("Penyelenggara tidak boleh hanya berisi tag HTML.")
+        return issuer
+
+    def clean_description(self):
+        # Deskripsi boleh kosong, jadi tidak ditolak walaupun hasilnya kosong.
+        return strip_tags(self.cleaned_data["description"]).strip()
+
     def clean_year(self):
         year = self.cleaned_data["year"]
         if year > timezone.now().year:

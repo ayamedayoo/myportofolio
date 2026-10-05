@@ -116,15 +116,21 @@ class MainTest(TestCase):
         response = self.client.get(reverse("main:show_award"))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "award.html")
-        self.assertContains(response, "1st Place Data Science")
-        self.assertContains(response, "Universitas Indonesia")
-        self.assertContains(response, "2024")
+        self.assertContains(response, 'id="award-grid"')
+        self.assertContains(response, reverse("main:get_awards_json"))
         self.assertContains(response, f'href="{reverse("main:show_main")}"')
+        # Halaman hanya kerangka. Datanya datang dari endpoint JSON.
+        self.assertNotContains(response, "1st Place Data Science")
+
+        fields = self.client.get(reverse("main:get_awards_json")).json()[0]["fields"]
+        self.assertEqual(fields["title"], "1st Place Data Science")
+        self.assertEqual(fields["issuer"], "Universitas Indonesia")
+        self.assertEqual(fields["year"], 2024)
 
     def test_empty_award_page(self):
         Award.objects.all().delete()
-        response = self.client.get(reverse("main:show_award"))
-        self.assertContains(response, "Belum ada penghargaan yang ditambahkan.")
+        self.assertEqual(self.client.get(reverse("main:get_awards_json")).json(), [])
+        self.assertContains(self.client.get(reverse("main:show_award")), 'id="award-empty"')
 
 class AwardCrudTest(TestCase):
     """Tes alur form & data delivery untuk bagian Award (Tugas 3)."""
@@ -225,19 +231,17 @@ class AwardCrudTest(TestCase):
         response = self.client.get(reverse("main:show_award"), {"level": "hacker"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context["active_level"], "")
-        self.assertContains(response, "1st Place Business Plan")
+        data = self.client.get(reverse("main:get_awards_json"), {"level": "hacker"}).json()
+        self.assertEqual([item["fields"]["title"] for item in data], ["1st Place Business Plan"])
 
     def test_award_json_by_id(self):
         response = self.client.get(reverse("main:get_award_json_by_id", args=[self.award.id]))
         self.assertEqual(response.json()[0]["pk"], str(self.award.id))
 
-    def test_award_page_renders_deserialized_json(self):
-        response = self.client.get(reverse("main:show_award"))
-        self.assertContains(response, "1st Place Business Plan")
-        self.assertContains(response, "Universitas Indonesia")
-        self.assertContains(response, "2024")
-        self.assertContains(response, reverse("main:update_award", args=[self.award.id]))
-        self.assertContains(response, reverse("main:delete_award", args=[self.award.id]))
+    def test_awards_json_has_display_labels(self):
+        fields = self.client.get(reverse("main:get_awards_json")).json()[0]["fields"]
+        self.assertEqual(fields["placement_display"], "Juara 1")
+        self.assertEqual(fields["level_display"], "Nasional")
 
 
 class ProjectUpdateAndJsonTest(TestCase):
@@ -308,12 +312,18 @@ class RoleAccessTest(TestCase):
             response = self.client.post(url)
             self.assertRedirects(response, f"/login/?next={url}", fetch_redirect_response=False)
 
+    def assertControls(self, response, *, create, update, delete):
+        """Tombol dibuat JavaScript, jadi yang dicek adalah tanda hak akses yang dikirim ke halaman."""
+        self.assertEqual('popovertarget="add-award-modal"' in response.content.decode(), create)
+        self.assertContains(response, f'const CAN_UPDATE = "{str(update).lower()}"')
+        self.assertContains(response, f'const CAN_DELETE = "{str(delete).lower()}"')
+
     def test_visitor_can_read(self):
         response = self.client.get(reverse("main:show_award"))
-        self.assertContains(response, "Juara Hackathon")
-        self.assertNotContains(response, self.update_url)
-        self.assertNotContains(response, self.delete_url)
-        self.assertNotContains(response, self.create_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertControls(response, create=False, update=False, delete=False)
+        data = self.client.get(reverse("main:get_awards_json")).json()
+        self.assertEqual(data[0]["fields"]["title"], "Juara Hackathon")
 
     def test_regular_user_gets_403_on_changes(self):
         self.client.force_login(self.user)
@@ -329,23 +339,19 @@ class RoleAccessTest(TestCase):
         self.assertEqual(self.client.post(self.delete_url).status_code, 403)
 
         response = self.client.get(reverse("main:show_award"))
-        self.assertContains(response, self.update_url)
-        self.assertNotContains(response, self.delete_url)
-        self.assertNotContains(response, self.create_url)
+        self.assertControls(response, create=False, update=True, delete=False)
 
     def test_owner_sees_all_controls(self):
         self.client.force_login(self.owner)
         response = self.client.get(reverse("main:show_award"))
-        self.assertContains(response, self.create_url)
-        self.assertContains(response, self.update_url)
-        self.assertContains(response, self.delete_url)
+        self.assertControls(response, create=True, update=True, delete=True)
 
     def test_star_toggles_once_per_user(self):
         self.client.force_login(self.user)
         self.client.post(self.star_url)
         self.assertEqual(self.award.starred_by.count(), 1)
-        response = self.client.get(reverse("main:show_award"))
-        self.assertContains(response, "Unstar")
+        fields = self.client.get(reverse("main:get_awards_json")).json()[0]["fields"]
+        self.assertTrue(fields["is_starred"])
 
         self.client.post(self.star_url)
         self.assertEqual(self.award.starred_by.count(), 0)
@@ -357,8 +363,11 @@ class RoleAccessTest(TestCase):
     def test_awards_json_shows_username_not_user_id(self):
         self.award.starred_by.add(self.user)
         fields = self.client.get(reverse("main:get_awards_json")).json()[0]["fields"]
-        self.assertEqual(fields["starred_by"], [["biasa"]])
+        self.assertEqual(fields["starred_by_names"], "biasa")
+        self.assertEqual(fields["star_count"], 1)
+        self.assertFalse(fields["is_starred"])  # pengunjung belum login
         self.assertNotIn("password", str(fields))
+        self.assertNotIn("starred_by", fields)  # daftar id pengguna tidak ikut dikirim
 
 
 class ProjectAjaxTest(TestCase):
@@ -441,3 +450,123 @@ class ProjectAjaxTest(TestCase):
         response = self.client.post(self.create_url, payload)
         self.assertEqual(response.status_code, 400)
         self.assertIn("title", response.json()["errors"])
+
+
+class AwardAjaxTest(TestCase):
+    """Tes endpoint AJAX halaman Award (Tugas 5)."""
+
+    def setUp(self):
+        self.award = Award.objects.create(title="Juara Hackathon", issuer="Fasilkom UI", year=2025)
+        self.user = User.objects.create_user("biasa", password="Biasa-Test-123")
+        self.editor = User.objects.create_user("editor", password="Editor-Test-123")
+        self.editor.groups.add(Group.objects.get(name="Editor"))
+        self.owner = User.objects.create_superuser("pemilik", password="Pemilik-Test-123")
+        self.create_url = reverse("main:create_award_ajax")
+        self.star_url = reverse("main:toggle_award_star", args=[self.award.id])
+        self.valid_data = {
+            "title": "Finalist Business Case",
+            "issuer": "Universitas Gadjah Mada",
+            "year": 2025,
+            "placement": "finalist",
+            "level": "national",
+            "description": "Analisis kasus bisnis.",
+            "certificate_url": "https://example.com/sertifikat",
+        }
+
+    def test_create_ajax_requires_post(self):
+        self.client.force_login(self.owner)
+        self.assertEqual(self.client.get(self.create_url).status_code, 405)
+
+    def test_create_ajax_forbidden_for_visitor_user_and_editor(self):
+        response = self.client.post(self.create_url, self.valid_data)
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("message", response.json())
+        for account in (self.user, self.editor):
+            self.client.force_login(account)
+            self.assertEqual(self.client.post(self.create_url, self.valid_data).status_code, 403)
+        self.assertEqual(Award.objects.count(), 1)
+
+    def test_create_ajax_by_owner_returns_201(self):
+        self.client.force_login(self.owner)
+        response = self.client.post(self.create_url, self.valid_data)
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(Award.objects.filter(pk=response.json()["pk"], title="Finalist Business Case").exists())
+
+    def test_create_ajax_invalid_returns_400_with_field_errors(self):
+        self.client.force_login(self.owner)
+        data = {**self.valid_data, "year": timezone.now().year + 1, "certificate_url": "javascript:alert(1)"}
+        response = self.client.post(self.create_url, data)
+        self.assertEqual(response.status_code, 400)
+        errors = response.json()["errors"]
+        self.assertIn("year", errors)
+        self.assertIn("certificate_url", errors)
+        self.assertEqual(Award.objects.count(), 1)
+
+    def test_create_ajax_rejects_html_only_title(self):
+        self.client.force_login(self.owner)
+        data = {**self.valid_data, "title": '<img src="x" onerror="alert(1)">'}
+        response = self.client.post(self.create_url, data)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("title", response.json()["errors"])
+
+    def test_form_strips_tags_from_text_fields(self):
+        data = {**self.valid_data, "issuer": "<b>UGM</b>", "description": "Halo <script>x</script>dunia"}
+        form = AwardForm(data=data)
+        self.assertTrue(form.is_valid())
+        self.assertEqual(form.cleaned_data["issuer"], "UGM")
+        self.assertNotIn("<", form.cleaned_data["description"])
+
+    def test_create_ajax_requires_csrf_token(self):
+        from django.test import Client
+
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(self.owner)
+        self.assertEqual(client.post(self.create_url, self.valid_data).status_code, 403)
+        self.assertEqual(Award.objects.count(), 1)
+
+    def test_star_via_fetch_returns_json(self):
+        self.client.force_login(self.user)
+        response = self.client.post(self.star_url, HTTP_ACCEPT="application/json")
+        self.assertEqual(response.json(), {"star_count": 1, "is_starred": True, "starred_by_names": "biasa"})
+        response = self.client.post(self.star_url, HTTP_ACCEPT="application/json")
+        self.assertEqual(response.json()["star_count"], 0)
+
+    def test_star_via_regular_form_still_redirects(self):
+        self.client.force_login(self.user)
+        response = self.client.post(self.star_url)
+        self.assertRedirects(response, reverse("main:show_award"))
+
+    def test_awards_json_shows_star_status_of_logged_in_user(self):
+        self.award.starred_by.add(self.user)
+        self.client.force_login(self.user)
+        self.assertTrue(self.client.get(reverse("main:get_awards_json")).json()[0]["fields"]["is_starred"])
+        self.client.force_login(self.editor)
+        self.assertFalse(self.client.get(reverse("main:get_awards_json")).json()[0]["fields"]["is_starred"])
+
+    def test_modal_only_rendered_for_owner(self):
+        page_url = reverse("main:show_award")
+        self.assertNotContains(self.client.get(page_url), 'id="add-award-modal"')
+        self.client.force_login(self.editor)
+        self.assertNotContains(self.client.get(page_url), 'id="add-award-modal"')
+        self.client.force_login(self.owner)
+        self.assertContains(self.client.get(page_url), 'id="add-award-modal"')
+
+
+class LoginNextTest(TestCase):
+    """Setelah login, pengguna kembali ke halaman yang tadi dituju, tetapi hanya di situs ini."""
+
+    def setUp(self):
+        User.objects.create_user("biasa", password="Biasa-Test-123")
+        self.credentials = {"username": "biasa", "password": "Biasa-Test-123"}
+
+    def test_login_redirects_to_next(self):
+        response = self.client.post(reverse("main:login"), {**self.credentials, "next": "/award/?q=juara"})
+        self.assertRedirects(response, "/award/?q=juara", fetch_redirect_response=False)
+
+    def test_login_page_keeps_next_in_form(self):
+        response = self.client.get(reverse("main:login"), {"next": "/award/"})
+        self.assertContains(response, 'name="next" value="/award/"')
+
+    def test_login_ignores_external_next(self):
+        response = self.client.post(reverse("main:login"), {**self.credentials, "next": "https://evil.example.com/"})
+        self.assertRedirects(response, reverse("main:show_main"), fetch_redirect_response=False)

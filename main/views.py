@@ -8,6 +8,7 @@ from django.core import serializers
 from django.db.models import Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
 from main.forms import AwardForm, ProjectForm
@@ -39,13 +40,19 @@ def _toggle_star(obj, user):
         obj.starred_by.add(user)
 
 
-def _deserialize(response):
-    """Ubah HttpResponse JSON hasil ``_json_response`` kembali menjadi list objek model.
+def _star_fields(obj, user):
+    """Informasi star untuk JSON. ``starred_by`` sebaiknya sudah di-prefetch agar tidak query berulang."""
+    usernames = [starrer.username for starrer in obj.starred_by.all()]
+    return {
+        "star_count": len(usernames),
+        "is_starred": user.is_authenticated and user.username in usernames,
+        "starred_by_names": ", ".join(usernames),
+    }
 
-    Objek hasil deserialisasi tetap instance model biasa, jadi method seperti
-    ``get_level_display`` dan property seperti ``is_ongoing`` tetap bisa dipakai di template.
-    """
-    return [item.object for item in serializers.deserialize("json", response.content)]
+
+def _wants_json(request):
+    """Permintaan dari fetch() di halaman kita mengirim header ``Accept: application/json``."""
+    return "application/json" in request.headers.get("Accept", "")
 
 
 # ---------------------------------------------------------------------------
@@ -61,14 +68,24 @@ def register(request):
     return render(request, "register.html", {"form": form})
 
 
+def _safe_next_url(request):
+    """Ambil parameter ``next`` hanya kalau mengarah ke situs ini, supaya tidak bisa dipakai open redirect."""
+    next_url = request.POST.get("next") or request.GET.get("next", "")
+    if url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()):
+        return next_url
+    return ""
+
+
 def login_user(request):
     form = AuthenticationForm(request, data=request.POST or None)
+    next_url = _safe_next_url(request)
     if request.method == "POST" and form.is_valid():
         login(request, form.get_user())
-        response = redirect("main:show_main")
+        # Kembali ke halaman yang tadi dituju (mis. setelah menekan Star), kalau ada
+        response = redirect(next_url or "main:show_main")
         response.set_cookie("last_login", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         return response
-    return render(request, "login.html", {"form": form})
+    return render(request, "login.html", {"form": form, "next": next_url})
 
 
 def logout_user(request):
@@ -200,7 +217,6 @@ def get_projects_json(request):
 
     data = []
     for project in projects:
-        starred_usernames = [user.username for user in project.starred_by.all()]
         data.append({
             "pk": str(project.id),
             "fields": {
@@ -210,9 +226,7 @@ def get_projects_json(request):
                 "started_at": project.started_at.isoformat(),
                 "ended_at": project.ended_at.isoformat() if project.ended_at else None,
                 "is_ongoing": project.is_ongoing,
-                "star_count": len(starred_usernames),
-                "is_starred": request.user.is_authenticated and request.user.username in starred_usernames,
-                "starred_by_names": ", ".join(starred_usernames),
+                **_star_fields(project, request.user),
             },
         })
     return JsonResponse(data, safe=False)
@@ -228,14 +242,7 @@ def get_project_json_by_id(request, project_id):
 # ---------------------------------------------------------------------------
 
 def show_award(request):
-    """Render halaman award.
-
-    Datanya tidak diambil langsung dari ORM, melainkan dari ``get_awards_json``
-    lalu dideserialisasi, sehingga halaman ini memakai data yang sama persis
-    dengan yang dikirim endpoint JSON (termasuk filter ``level`` dan ``q``).
-    """
-    awards = _deserialize(get_awards_json(request))
-
+    """Render kerangka halaman award. Kartu-kartunya diambil browser lewat AJAX dari ``get_awards_json``."""
     # Hanya tampilkan tombol filter untuk tingkat yang memang punya data.
     used_levels = set(Award.objects.values_list("level", flat=True))
     level_filters = [
@@ -250,10 +257,11 @@ def show_award(request):
         active_level = ""
 
     context = {
-        "award_list": awards,
         "level_filters": level_filters,
         "active_level": active_level,
         "search_query": request.GET.get("q", "").strip(),
+        # Form kosong untuk modal tambah award, hanya dirender untuk peran yang boleh membuat data.
+        "form": AwardForm(),
     }
     return render(request, "award.html", context)
 
@@ -266,6 +274,29 @@ def create_award(request):
         messages.success(request, f"Penghargaan \"{award.title}\" berhasil ditambahkan!")
         return redirect("main:show_award")
     return render(request, "award_form.html", {"form": form})
+
+
+@require_POST
+def create_award_ajax(request):
+    """Tambah award lewat AJAX dengan balasan JSON: 201 berhasil, 400 tidak valid, 403 tidak berhak.
+
+    Hak akses dicek manual (bukan ``role_required``) supaya pengunjung mendapat JSON 403,
+    bukan redirect ke halaman login yang tidak bisa dibaca oleh ``fetch``.
+    """
+    if not can_create(request.user):
+        return JsonResponse(
+            {"message": "Hanya pemilik portofolio yang dapat menambahkan penghargaan."},
+            status=403,
+        )
+
+    form = AwardForm(request.POST)
+    if form.is_valid():
+        award = form.save()
+        return JsonResponse(
+            {"message": f"Penghargaan \"{award.title}\" berhasil ditambahkan.", "pk": str(award.id)},
+            status=201,
+        )
+    return JsonResponse({"errors": form.errors.get_json_data()}, status=400)
 
 
 @role_required(can_update)
@@ -293,19 +324,22 @@ def delete_award(request, award_id):
 @login_required(login_url=LOGIN_URL)
 @require_POST
 def toggle_award_star(request, award_id):
+    """Beri atau batalkan star. Dari fetch() dibalas JSON, dari form biasa dibalas redirect."""
     award = get_object_or_404(Award, pk=award_id)
     _toggle_star(award, request.user)
+    if _wants_json(request):
+        return JsonResponse(_star_fields(award, request.user))
     return redirect("main:show_award")
 
 
 def get_awards_json(request):
-    """Kembalikan data award dalam JSON.
+    """Kembalikan data award dalam JSON, dirakit manual agar bisa memuat info star pengguna yang login.
 
     Query parameter opsional:
     - ``level``: filter berdasarkan tingkat (``internal``, ``regional``, ``national``, ``international``)
     - ``q``: cari berdasarkan nama penghargaan atau penyelenggara
     """
-    awards = Award.objects.all()
+    awards = Award.objects.prefetch_related("starred_by")
 
     level = request.GET.get("level", "")
     if level in dict(Award.LEVEL_CHOICES):
@@ -315,7 +349,25 @@ def get_awards_json(request):
     if query:
         awards = awards.filter(Q(title__icontains=query) | Q(issuer__icontains=query))
 
-    return _json_response(awards)
+    data = []
+    for award in awards:
+        data.append({
+            "pk": str(award.id),
+            "fields": {
+                "title": award.title,
+                "issuer": award.issuer,
+                "year": award.year,
+                "placement": award.placement,
+                "placement_display": award.get_placement_display(),
+                "level": award.level,
+                "level_display": award.get_level_display(),
+                "description": award.description,
+                "certificate_url": award.certificate_url,
+                "is_featured": award.is_featured,
+                **_star_fields(award, request.user),
+            },
+        })
+    return JsonResponse(data, safe=False)
 
 
 def get_award_json_by_id(request, award_id):
