@@ -28,6 +28,7 @@ Halaman yang ada saat ini:
 | Tutorial 4 | Register, login, dan logout memakai sistem akun bawaan Django. Cookie `last_login` untuk mencatat waktu login terakhir. Tombol star dan pembatasan akses di halaman Project. |
 | Tugas 4 | Empat peran pengguna (pengunjung, pengguna biasa, Editor, pemilik) untuk Award dan Project. Tombol star di Award. Tombol aksi disembunyikan untuk yang tidak berhak. |
 | Tutorial 5 | Notifikasi toast. Daftar proyek dimuat lewat AJAX dengan Fetch API. Pencarian proyek berjalan saat mengetik dengan debounce. Form tambah proyek ada di dalam modal dan dikirim tanpa reload halaman. Perlindungan XSS dengan escaping di JavaScript dan pembersihan input di server. |
+| Tugas 5 | Pola Tutorial 5 diterapkan ke halaman Award: data dimuat lewat AJAX, pencarian dengan debounce, filter tingkat tanpa reload, modal tambah award, toast, star tanpa reload, dan perlindungan XSS. Fungsi JavaScript bersama dipindah ke `static/js/utils.js`. |
 
 ### Tugas 4: Hak Akses dan Fitur Star
 
@@ -66,12 +67,56 @@ Pembatasan ini berlaku untuk halaman Award dan Project.
 4. Login dengan akun superuser. Semua tombol muncul dan semua aksi bisa dipakai.
 
 
+### Tugas 5: Halaman Award yang Interaktif
+
+Di tugas ini, halaman Award tidak lagi dikirim lengkap dari server. Server hanya mengirim kerangka halamannya. Setelah itu, JavaScript di browser mengambil data award dari endpoint JSON lalu membuat kartunya satu per satu. Hasilnya, mencari, memfilter, menambah data, dan memberi star bisa dilakukan tanpa memuat ulang halaman.
+
+#### Yang bisa dilakukan di halaman Award
+
+1. Melihat daftar award. Saat data sedang dimuat, muncul tulisan "Memuat penghargaan...". Kalau data kosong atau tidak ada yang cocok, muncul pesan yang sesuai. Kalau server gagal dihubungi, muncul pesan error beserta tombol "Coba lagi".
+2. Mencari award berdasarkan nama lomba atau penyelenggara. Pencarian berjalan sendiri setelah kita berhenti mengetik selama 300 milidetik.
+3. Memfilter award berdasarkan tingkat, misalnya Nasional atau Internasional.
+4. Menambah award lewat modal, khusus untuk pemilik. Setelah berhasil, modal tertutup, muncul toast hijau, dan daftar langsung diperbarui.
+5. Memberi atau membatalkan star. Jumlah star di tombol langsung berubah tanpa reload.
+
+#### Cara kerjanya
+
+1. View `get_awards_json` merakit JSON secara manual dengan `JsonResponse`. Setiap award membawa jumlah star (`star_count`), status star milik akun yang sedang login (`is_starred`), dan daftar username pemberi star. Id pengguna dari database tidak ikut dikirim.
+
+2. View `create_award_ajax` hanya menerima POST. Isinya divalidasi dengan `AwardForm`, lalu server membalas dengan kode yang sesuai. Kode 201 berarti data berhasil dibuat. Kode 400 berarti isian tidak valid, dan pesan error tiap field ikut dikirim. Kode 403 berarti akun tersebut tidak berhak menambah data.
+
+3. Hak akses tetap dicek di dalam view, bukan hanya dengan menyembunyikan tombol. Jadi Editor, pengguna biasa, atau pengunjung yang mencoba mengirim data langsung lewat `fetch` tetap ditolak dengan 403.
+
+4. Setiap permintaan POST membawa token CSRF lewat header `X-CSRFToken`. Nilainya dibaca dari cookie `csrftoken` dengan fungsi `getCookie`.
+
+5. Semua teks dari JSON di-escape dengan `escapeHtml` sebelum dimasukkan ke HTML. Pesan error di toast dan di bawah field diisi lewat `textContent`. Keduanya membuat isi data selalu tampil sebagai teks biasa, bukan sebagai kode.
+
+6. Sebagai lapisan kedua, `AwardForm` punya method `clean_title`, `clean_issuer`, dan `clean_description` yang memakai `strip_tags`. Judul yang isinya hanya tag HTML, seperti `<img src="x" onerror="alert('XSS!')">`, langsung ditolak oleh server.
+
+7. Fungsi `escapeHtml`, `getCookie`, dan `collectErrorMessages` dipindah ke `static/js/utils.js`. File ini dimuat sekali di `base.html`, jadi halaman Project dan Award memakai kode yang sama. Modal form juga dijadikan satu komponen umum, yaitu `templates/components/form_modal.html`.
+
+#### Fitur tambahan di luar instruksi
+
+1. Filter tingkat berjalan lewat AJAX dan bisa digabung dengan pencarian.
+2. Kata kunci dan filter disimpan di alamat halaman, misalnya `/award/?q=juara&level=national`. Jadi halaman bisa di-refresh atau dibagikan tanpa kehilangan hasil pencarian.
+3. Tombol star bekerja lewat `fetch` tanpa reload. Pengunjung yang belum login diarahkan ke halaman login, lalu dikembalikan ke halaman Award setelah login.
+4. Pesan error validasi muncul di toast dan juga tepat di bawah field yang salah.
+5. Ada tulisan jumlah hasil, misalnya "Menampilkan 3 penghargaan tingkat Nasional".
+6. Permintaan lama dibatalkan dengan `AbortController`, jadi hasil pencarian lama tidak menimpa hasil yang terbaru.
+
+#### Cara mencoba
+
+1. Buka `/award/` tanpa login. Data tetap tampil. Tombol Tambah, Edit, dan Hapus tidak muncul.
+2. Ketik sebagian nama lomba di kolom pencarian. Buka tab Network di DevTools, lalu perhatikan bahwa permintaan baru terkirim setelah kamu berhenti mengetik.
+3. Login sebagai superuser, lalu tambahkan award lewat tombol Tambah Award. Coba juga isi tahun di masa depan atau judul berisi tag HTML. Server akan menolaknya dan pesan error muncul di toast.
+
 ### Endpoint
 
 | URL | Keterangan |
 | --- | --- |
 | `/award/` | Daftar award (dari JSON yang dideserialisasi), mendukung `?level=` dan `?q=` |
 | `/award/add/` | Form tambah award |
+| `/award/add-ajax/` | Tambah award lewat AJAX (POST, hanya pemilik), balasannya JSON dengan status 201, 400, atau 403 |
 | `/award/<uuid>/edit/` | Form edit award |
 | `/award/<uuid>/delete/` | Hapus award (POST) |
 | `/award/<uuid>/star/` | Beri atau batalkan star pada award (POST, harus login) |
@@ -79,7 +124,7 @@ Pembatasan ini berlaku untuk halaman Award dan Project.
 | `/register/`, `/login/`, `/logout/` | Daftar akun, login, dan logout |
 | `/project/add/`, `/project/<uuid>/edit/`, `/project/<uuid>/delete/` | Tambah, edit, dan hapus proyek |
 | `/project/add-ajax/` | Tambah proyek lewat AJAX (POST, hanya pemilik), balasannya JSON |
-| `/api/awards/` | Semua award dalam JSON, mendukung `?level=` dan `?q=` |
+| `/api/awards/` | Semua award dalam JSON beserta info star, mendukung `?level=` dan `?q=` |
 | `/api/awards/<uuid>/` | Satu award dalam JSON |
 | `/api/projects/` | Semua proyek dalam JSON beserta jumlah star, mendukung `?title=` |
 | `/api/projects/<uuid>/` | Satu proyek dalam JSON |
@@ -141,6 +186,14 @@ Tugas 4
 - Alat yang saya pakai adalah Claude Code lewat aplikasi desktop Claude.
 - Cara saya memakainya digunakan untuk melakukan test dan debugging, cek eror, dan membantu saya untuk perbaikan
 
+Tugas 5
+
+- Alat yang saya pakai adalah Claude Code lewat aplikasi desktop Claude.
+- Claude membantu saya untuk melakukan debugging, rekomendasi, dan memberikan arahan jika terdapat yang eror
+
+Keterbatasan AI yang saya temukan:
+- Claude tidak bisa melihat tampilan halaman secara langsung karena tangkapan layarnya gagal. Jadi tampilan modal dan animasi toast tetap perlu saya cek sendiri di browser.
+
 
 
 ## Pertanyaan Reflektif
@@ -188,3 +241,17 @@ Contoh gampangnya kayak gini: misalnya kita baru aja bikin model Project di mode
 3. Contohnya waktu saya buka `/api/awards/?level=national`. Request masuk ke `urls.py` dan dicocokkan ke fungsi `get_awards_json`. Di dalam view, saya mulai dari `Award.objects.all()`, lalu kalau ada parameter `level` atau `q` saya tambahkan `.filter(...)`. Sampai sini datanya masih berupa QuerySet, yaitu kumpulan objek Python yang cuma dimengerti oleh Django. QuerySet itu lalu dimasukkan ke `serializers.serialize("json", awards)`, yang mengubah setiap objek jadi teks JSON berisi `model`, `pk`, dan `fields`. Teks itu dibungkus `HttpResponse` dengan `content_type="application/json"` supaya penerimanya tahu isinya JSON, bukan HTML. Di halaman `/award/`, saya justru memanggil view JSON ini dulu, lalu hasilnya dideserialisasi balik jadi objek `Award` dengan `serializers.deserialize`, baru dikirim ke template.
 
    Kenapa harus diserialisasi? Karena objek model Django itu hidup di memori Python. Isinya bukan cuma data, tapi juga method, hubungan ke database, dan tipe-tipe khusus seperti `UUID`, `date`, dan `datetime`. Semua itu tidak bisa dikirim begitu saja lewat HTTP, karena HTTP cuma bisa mengirim teks atau byte. Kalau dicoba `json.dumps(award)` langsung, Python akan error karena tidak tahu cara mengubah objek `Award` jadi JSON. Serialisasi adalah proses menerjemahkan objek itu ke format netral yang bisa dibaca siapa saja, entah JavaScript di browser, aplikasi Flutter, atau sistem lain yang sama sekali tidak kenal Django.
+
+### Tugas 5
+
+1. Awalnya saya bingung, kenapa pencarian di halaman Award nggak langsung jalan tiap saya ngetik satu huruf. Ternyata itu karena debouncing. Gampangnya, debouncing itu kayak "nunggu orangnya selesai ngomong dulu, baru dijawab". Jadi selama saya masih ngetik, browser nahan dulu. Begitu saya berhenti ngetik sekitar 300 milidetik, baru deh pencariannya dikirim ke server. Kalau saya ngetik huruf lagi sebelum waktunya habis, timernya diulang dari nol.
+
+   Kenapa ini penting? Coba bayangin kalau nggak pakai debouncing. Saya ngetik "juara", berarti ada lima huruf, dan browser bakal ngirim lima permintaan ke server: "j", "ju", "jua", "juar", baru "juara". Padahal yang saya butuhin cuma hasil buat "juara". Empat permintaan sisanya cuma buang tenaga server dan kuota internet. Yang bikin saya kaget, hasil dari permintaan lama juga bisa datang belakangan dan malah nimpa hasil yang baru. Jadi debouncing bikin halamannya lebih hemat, lebih ringan, dan hasil pencariannya nggak loncat-loncat.
+
+2. Pas belajar ini, saya baru ngeh kalau `fetch()` itu nggak langsung ngasih data. Yang dikasih duluan itu Promise, semacam "janji" kalau datanya bakal dateng nanti setelah server bales. Nah, `await` itu gunanya buat bilang ke JavaScript, "tunggu dulu ya sampai janjinya beres, baru lanjut ke baris berikutnya". Setelah ditunggu, baru kita dapet Response beneran yang bisa dicek, misalnya `response.ok`, terus datanya dibaca pakai `await response.json()`.
+
+   Kalau `await`-nya lupa ditulis, JavaScript nggak bakal nunggu. Dia langsung lanjut ke baris bawahnya, padahal datanya belum dateng. Jadinya variabel yang harusnya isi Response malah isinya Promise yang belum selesai. Akibatnya, kode kayak `response.ok` atau `data.length` nggak jalan sesuai harapan, dan halaman bisa kosong atau malah error. Satu lagi yang saya pelajari, error dari server juga nggak bakal ketangkep sama `try...catch`, soalnya kodenya udah lewat duluan sebelum errornya muncul.
+
+3. XSS (Cross-Site Scripting) itu serangan di mana orang jahat nyelipin kode JavaScript ke dalam data di website kita. Terus kode itu ikut jalan di browser orang lain yang buka halaman tersebut. Contoh yang saya coba sendiri di tugas ini: judul award diisi `<img src="x" onerror="alert('XSS!')">`. Kalau judul itu ditampilin apa adanya, browser bakal nyoba muat gambar "x", gagal, terus ngejalanin isi `onerror`. Di contoh ini isinya cuma `alert`, tapi penyerang bisa aja ganti jadi kode yang lebih bahaya, misalnya ngirim permintaan atas nama orang yang lagi login.
+
+   Yang menarik, waktu data masih ditampilin lewat template Django, kita sebenarnya udah aman tanpa sadar. Django otomatis ngubah karakter kayak `<` dan `>` jadi `&lt;` dan `&gt;`, namanya auto-escaping. Jadi browser nampilinnya sebagai teks biasa, bukan kode. Masalahnya, pas pindah ke AJAX, data dari JSON nggak lewat template Django lagi. Data itu dirakit sama JavaScript, terus dimasukin ke halaman pakai `innerHTML`. Nah, `innerHTML` ini nganggep semua isinya sebagai HTML beneran dan nggak ngelakuin escaping sama sekali. Makanya di tugas ini saya harus escaping sendiri pakai fungsi `escapeHtml`, atau pakai `textContent` yang selalu nganggep isinya sebagai teks biasa.
