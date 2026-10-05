@@ -59,7 +59,8 @@
     </main>
 
     {% if can_create %}
-        {% include "components/project_form_modal.html" %}
+        {% url 'main:create_project' as create_url %}
+        {% include "components/form_modal.html" with modal_id="add-project-modal" form_id="project-form" heading="Tambah Proyek Baru" action_url=create_url submit_label="Tambah Proyek" noun="proyek" %}
     {% endif %}
 {% endblock content %}
 
@@ -95,17 +96,6 @@
         errorState.classList.toggle('hide', !showError);
         emptyState.classList.toggle('hide', !showEmpty);
         gridContainer.classList.toggle('hide', !showGrid);
-    }
-
-    // Mengubah karakter khusus HTML menjadi entity agar ditampilkan sebagai teks, bukan dijalankan.
-    // '&' harus diganti paling awal supaya hasil penggantian lain tidak ikut diubah lagi.
-    function escapeHtml(value) {
-        return String(value ?? '')
-            .replaceAll('&', '&amp;')
-            .replaceAll('<', '&lt;')
-            .replaceAll('>', '&gt;')
-            .replaceAll('"', '&quot;')
-            .replaceAll("'", '&#39;');
     }
 
     // Membuat elemen kartu dari satu objek proyek JSON
@@ -225,22 +215,6 @@
         document.getElementById('add-project-modal').hidePopover();
     }
 
-    // Membaca nilai cookie, dipakai untuk mengambil token CSRF
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
-    }
-
     // Mengirim isi form tambah proyek ke server tanpa reload halaman
     async function addProject(event) {
         event.preventDefault();
@@ -264,10 +238,7 @@
                 showToast('Berhasil', 'Proyek baru berhasil ditambahkan!', 'success');
                 searchProjects();
             } else {
-                const errorMessages = result.errors
-                    ? Object.values(result.errors).flat().map(error => error.message)
-                    : [result.message || `Terjadi kesalahan (status ${response.status}).`];
-                showToast('Gagal menambahkan proyek', errorMessages.join(' '), 'error');
+                showToast('Gagal menambahkan proyek', collectErrorMessages(result, response.status), 'error');
             }
         } catch (error) {
             console.error('Error adding project:', error);

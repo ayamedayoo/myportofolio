@@ -1,0 +1,41 @@
+{% comment %}
+Modal berisi form tambah data yang bisa dipakai ulang (Project, Award, dst).
+Parameter: modal_id, form_id, heading, action_url, submit_label, noun (untuk label aksesibilitas).
+Dibuka oleh tombol dengan popovertarget="{{ modal_id }}". Pengirimannya diambil alih JavaScript
+(AJAX). Kalau JavaScript mati, form tetap terkirim ke action_url seperti form biasa.
+{% endcomment %}
+<div id="{{ modal_id }}"
+    class="project-form-modal"
+    popover="auto"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="{{ modal_id }}-title">
+
+    <button type="button"
+        class="project-form-modal__backdrop"
+        popovertarget="{{ modal_id }}"
+        popovertargetaction="hide"
+        aria-label="Tutup form tambah {{ noun }}"></button>
+
+    <div class="project-form-modal__content">
+        <button type="button"
+            class="project-form-modal__close"
+            popovertarget="{{ modal_id }}"
+            popovertargetaction="hide"
+            aria-label="Tutup form tambah {{ noun }}">&times;</button>
+
+        <h2 id="{{ modal_id }}-title">{{ heading }}</h2>
+
+        <form id="{{ form_id }}" method="post" action="{{ action_url }}" class="project-form">
+            {% csrf_token %}
+            {% include "components/form_fields.html" %}
+            <div class="project-form-modal__actions">
+                <button type="button"
+                    class="button button-secondary"
+                    popovertarget="{{ modal_id }}"
+                    popovertargetaction="hide">Batal</button>
+                <button type="submit" class="button">{{ submit_label }}</button>
+            </div>
+        </form>
+    </div>
+</div>
