@@ -85,7 +85,7 @@ class MainTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "project.html")
         self.assertContains(response, 'id="grid"')
-        self.assertContains(response, reverse("main:get_projects_json"))
+        self.assertContains(response, reverse("api:project-list"))
         self.assertContains(response, f'href="{reverse("main:show_main")}"')
         self.assertNotContains(response, "Sistem Informasi Akademik")
 
