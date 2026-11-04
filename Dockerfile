@@ -13,4 +13,6 @@ RUN python manage.py collectstatic --noinput
 
 EXPOSE 80
 
-CMD ["gunicorn", "portofolio.wsgi:application", "--bind", "0.0.0.0:80"]
+# Migrasi dijalankan saat container start (bukan saat build) karena database
+# produksi baru bisa diakses lewat environment variable PWS saat runtime.
+CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn portofolio.wsgi:application --bind 0.0.0.0:80"]
