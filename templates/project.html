@@ -179,11 +179,7 @@
         }
     }
 
-    // Membaca error serializer ({"title": ["..."]}) atau error umum ({"detail": "..."})
-    function apiErrorMessage(data, status) {
-        const messages = Object.values(data).flat().filter(value => typeof value === 'string');
-        return messages.join(' ') || `Permintaan gagal (HTTP ${status}).`;
-    }
+    // apiErrorMessage ada di static/js/utils.js, dipakai bersama halaman Award
 
     // Satu tempat untuk POST/PATCH/DELETE: JSON, token CSRF, dan error ditangani konsisten
     async function writeProject(url, method, payload) {
