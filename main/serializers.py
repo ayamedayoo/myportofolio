@@ -81,20 +81,17 @@ class StarInfoMixin(serializers.Serializer):
     is_starred = serializers.SerializerMethodField()
     starred_by_names = serializers.SerializerMethodField()
 
-    def _starrer_names(self, obj):
-        return [user.username for user in obj.starred_by.all()]
-
     def get_star_count(self, obj):
-        return len(self._starrer_names(obj))
+        return len(obj.starred_by.all())
 
     def get_is_starred(self, obj):
         request = self.context.get("request")
         if request is None or not request.user.is_authenticated:
             return False
-        return request.user.username in self._starrer_names(obj)
+        return any(user.pk == request.user.pk for user in obj.starred_by.all())
 
     def get_starred_by_names(self, obj):
-        return ", ".join(self._starrer_names(obj))
+        return ", ".join(user.username for user in obj.starred_by.all())
 
 
 def _clean_text(value, message, allow_blank=False):

@@ -1,7 +1,7 @@
 import uuid
 from datetime import date
 
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import AnonymousUser, Group, User
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -453,8 +453,8 @@ class ProjectAjaxTest(TestCase):
         self.assertIn("title", response.json()["errors"])
 
 
-class AwardAjaxTest(TestCase):
-    """Tes endpoint AJAX halaman Award (Tugas 5)."""
+class AwardPageTest(TestCase):
+    """Tes halaman Award dan endpoint lama Tugas 3-5. API-nya dites di ``tests_api.py``."""
 
     def setUp(self):
         self.award = Award.objects.create(title="Juara Hackathon", issuer="Fasilkom UI", year=2025)
@@ -462,7 +462,6 @@ class AwardAjaxTest(TestCase):
         self.editor = User.objects.create_user("editor", password="Editor-Test-123")
         self.editor.groups.add(Group.objects.get(name="Editor"))
         self.owner = User.objects.create_superuser("pemilik", password="Pemilik-Test-123")
-        self.create_url = reverse("main:create_award_ajax")
         self.star_url = reverse("main:toggle_award_star", args=[self.award.id])
         self.valid_data = {
             "title": "Finalist Business Case",
@@ -474,63 +473,12 @@ class AwardAjaxTest(TestCase):
             "certificate_url": "https://example.com/sertifikat",
         }
 
-    def test_create_ajax_requires_post(self):
-        self.client.force_login(self.owner)
-        self.assertEqual(self.client.get(self.create_url).status_code, 405)
-
-    def test_create_ajax_forbidden_for_visitor_user_and_editor(self):
-        response = self.client.post(self.create_url, self.valid_data)
-        self.assertEqual(response.status_code, 403)
-        self.assertIn("message", response.json())
-        for account in (self.user, self.editor):
-            self.client.force_login(account)
-            self.assertEqual(self.client.post(self.create_url, self.valid_data).status_code, 403)
-        self.assertEqual(Award.objects.count(), 1)
-
-    def test_create_ajax_by_owner_returns_201(self):
-        self.client.force_login(self.owner)
-        response = self.client.post(self.create_url, self.valid_data)
-        self.assertEqual(response.status_code, 201)
-        self.assertTrue(Award.objects.filter(pk=response.json()["pk"], title="Finalist Business Case").exists())
-
-    def test_create_ajax_invalid_returns_400_with_field_errors(self):
-        self.client.force_login(self.owner)
-        data = {**self.valid_data, "year": timezone.now().year + 1, "certificate_url": "javascript:alert(1)"}
-        response = self.client.post(self.create_url, data)
-        self.assertEqual(response.status_code, 400)
-        errors = response.json()["errors"]
-        self.assertIn("year", errors)
-        self.assertIn("certificate_url", errors)
-        self.assertEqual(Award.objects.count(), 1)
-
-    def test_create_ajax_rejects_html_only_title(self):
-        self.client.force_login(self.owner)
-        data = {**self.valid_data, "title": '<img src="x" onerror="alert(1)">'}
-        response = self.client.post(self.create_url, data)
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("title", response.json()["errors"])
-
     def test_form_strips_tags_from_text_fields(self):
         data = {**self.valid_data, "issuer": "<b>UGM</b>", "description": "Halo <script>x</script>dunia"}
         form = AwardForm(data=data)
         self.assertTrue(form.is_valid())
         self.assertEqual(form.cleaned_data["issuer"], "UGM")
         self.assertNotIn("<", form.cleaned_data["description"])
-
-    def test_create_ajax_requires_csrf_token(self):
-        from django.test import Client
-
-        client = Client(enforce_csrf_checks=True)
-        client.force_login(self.owner)
-        self.assertEqual(client.post(self.create_url, self.valid_data).status_code, 403)
-        self.assertEqual(Award.objects.count(), 1)
-
-    def test_star_via_fetch_returns_json(self):
-        self.client.force_login(self.user)
-        response = self.client.post(self.star_url, HTTP_ACCEPT="application/json")
-        self.assertEqual(response.json(), {"star_count": 1, "is_starred": True, "starred_by_names": "biasa"})
-        response = self.client.post(self.star_url, HTTP_ACCEPT="application/json")
-        self.assertEqual(response.json()["star_count"], 0)
 
     def test_star_via_regular_form_still_redirects(self):
         self.client.force_login(self.user)
@@ -543,6 +491,21 @@ class AwardAjaxTest(TestCase):
         self.assertTrue(self.client.get(reverse("main:get_awards_json")).json()[0]["fields"]["is_starred"])
         self.client.force_login(self.editor)
         self.assertFalse(self.client.get(reverse("main:get_awards_json")).json()[0]["fields"]["is_starred"])
+
+    def test_awards_json_uses_same_filters_as_api(self):
+        Award.objects.create(title="Finalis Essay", issuer="ITB", year=2024, level="regional")
+        old = self.client.get(reverse("main:get_awards_json"), {"q": "itb", "level": "regional"}).json()
+        new = self.client.get(reverse("api:award-list"), {"q": "itb", "level": "regional"}).json()
+        self.assertEqual([row["pk"] for row in old], [row["id"] for row in new])
+
+    def test_edit_modal_only_rendered_for_editor_and_owner(self):
+        page_url = reverse("main:show_award")
+        self.assertNotContains(self.client.get(page_url), 'id="edit-award-modal"')
+        self.client.force_login(self.user)
+        self.assertNotContains(self.client.get(page_url), 'id="edit-award-modal"')
+        for account in (self.editor, self.owner):
+            self.client.force_login(account)
+            self.assertContains(self.client.get(page_url), 'id="edit-award-modal"')
 
     def test_modal_only_rendered_for_owner(self):
         page_url = reverse("main:show_award")
@@ -571,3 +534,37 @@ class LoginNextTest(TestCase):
     def test_login_ignores_external_next(self):
         response = self.client.post(reverse("main:login"), {**self.credentials, "next": "https://evil.example.com/"})
         self.assertRedirects(response, reverse("main:show_main"), fetch_redirect_response=False)
+
+
+class AwardModelHelperTest(TestCase):
+    """Tes ``StarrableMixin`` dan ``AwardQuerySet`` yang dipakai bersama oleh view lama dan API."""
+
+    def setUp(self):
+        self.user = User.objects.create_user("biasa", password="Biasa-Test-123")
+        self.national = Award.objects.create(
+            title="Juara 1 Business Plan", issuer="Universitas Indonesia", year=2025, level="national",
+        )
+        self.regional = Award.objects.create(
+            title="Finalis Essay", issuer="ITB", year=2024, level="regional",
+        )
+
+    def test_toggle_star_returns_new_status(self):
+        self.assertTrue(self.national.toggle_star(self.user))
+        self.assertTrue(self.national.starred_by.filter(pk=self.user.pk).exists())
+        self.assertFalse(self.national.toggle_star(self.user))
+        self.assertFalse(self.national.starred_by.exists())
+
+    def test_search_matches_title_or_issuer_and_ignores_blank(self):
+        self.assertEqual(list(Award.objects.search("essay")), [self.regional])
+        self.assertEqual(list(Award.objects.search("indonesia")), [self.national])
+        self.assertEqual(Award.objects.search("   ").count(), 2)
+        self.assertEqual(Award.objects.search(None).count(), 2)
+
+    def test_at_level_ignores_unknown_level(self):
+        self.assertEqual(list(Award.objects.at_level("regional")), [self.regional])
+        self.assertEqual(Award.objects.at_level("galaxy").count(), 2)
+
+    def test_starred_by_user(self):
+        self.national.starred_by.add(self.user)
+        self.assertEqual(list(Award.objects.starred_by_user(self.user)), [self.national])
+        self.assertFalse(Award.objects.starred_by_user(AnonymousUser()).exists())

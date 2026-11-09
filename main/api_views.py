@@ -1,4 +1,3 @@
-from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
@@ -65,10 +64,7 @@ def project_detail(request, project_id):
 def project_star(request, project_id):
     """Toggle star milik akun yang sedang login, lalu kembalikan data proyek terbaru."""
     project = get_object_or_404(Project, pk=project_id)
-    if project.starred_by.filter(pk=request.user.pk).exists():
-        project.starred_by.remove(request.user)
-    else:
-        project.starred_by.add(request.user)
+    project.toggle_star(request.user)
     serializer = ProjectSerializer(project, context={"request": request})
     return Response(serializer.data)
 
@@ -91,17 +87,12 @@ def filter_awards(queryset, params, user):
     - ``q``: cari di nama penghargaan atau penyelenggara (pindahan pencarian Tugas 5)
     - ``level``: tingkat lomba; nilai yang tidak dikenal diabaikan
     - ``starred=1``: hanya award yang diberi star oleh akun yang sedang login
+
+    Logika setiap filter ada di ``AwardQuerySet``, jadi endpoint JSON lama memakai aturan yang sama.
     """
-    query = params.get("q", "").strip()
-    if query:
-        queryset = queryset.filter(Q(title__icontains=query) | Q(issuer__icontains=query))
-
-    level = params.get("level", "")
-    if level in dict(Award.LEVEL_CHOICES):
-        queryset = queryset.filter(level=level)
-
-    if params.get("starred") == "1" and user.is_authenticated:
-        queryset = queryset.filter(starred_by=user)
+    queryset = queryset.search(params.get("q")).at_level(params.get("level", ""))
+    if params.get("starred") == "1":
+        queryset = queryset.starred_by_user(user)
     return queryset
 
 
@@ -153,9 +144,6 @@ def award_star(request, award_id):
     memberi star atas nama akun lain.
     """
     award = get_object_or_404(Award, pk=award_id)
-    if award.starred_by.filter(pk=request.user.pk).exists():
-        award.starred_by.remove(request.user)
-    else:
-        award.starred_by.add(request.user)
+    award.toggle_star(request.user)
     award = _award_queryset().get(pk=award.pk)  # ambil ulang agar cache star segar
     return Response(AwardSerializer(award, context={"request": request}).data)

@@ -482,10 +482,12 @@
             return;
         }
 
+        const handler = cardActions[action];
+        if (!handler) return;
         const awardId = button.closest('[data-award-id]').dataset.awardId;
         button.disabled = true;
         try {
-            await cardActions[action](awardId, button);
+            await handler(awardId, button);
         } catch (error) {
             console.error(`Error on ${action}:`, error);
             showToast('Permintaan gagal', error.message || 'Tidak dapat terhubung ke server.', 'error');
