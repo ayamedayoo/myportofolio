@@ -43,3 +43,41 @@ function collectErrorMessages(result, status) {
   }
   return (result && result.message) || `Terjadi kesalahan (status ${status}).`;
 }
+
+/**
+ * Ubah balasan error dari API DRF menjadi satu kalimat untuk toast.
+ * Mendukung error serializer ({"title": ["..."]}) dan error umum ({"detail": "..."}).
+ */
+function apiErrorMessage(data, status) {
+  const messages = Object.values(data || {}).flat().filter(value => typeof value === 'string');
+  return messages.join(' ') || `Permintaan gagal (HTTP ${status}).`;
+}
+
+/**
+ * Kirim permintaan yang mengubah data ke API: body JSON, header X-CSRFToken, dan
+ * pengecekan status dilakukan di satu tempat. Melempar ApiError kalau status bukan 2xx.
+ */
+class ApiError extends Error {
+  constructor(data, status) {
+    super(apiErrorMessage(data, status));
+    this.data = data;
+    this.status = status;
+  }
+}
+
+async function apiWrite(url, method, payload) {
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'X-CSRFToken': getCookie('csrftoken'),
+    },
+    body: payload === undefined ? undefined : JSON.stringify(payload),
+  });
+  if (response.status === 204) return null; // DELETE berhasil, body kosong
+  // Respons yang bukan JSON (mis. halaman error) dianggap objek kosong
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new ApiError(data, response.status);
+  return data;
+}

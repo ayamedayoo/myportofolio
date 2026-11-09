@@ -262,6 +262,9 @@ def show_award(request):
         "search_query": request.GET.get("q", "").strip(),
         # Form kosong untuk modal tambah award, hanya dirender untuk peran yang boleh membuat data.
         "form": AwardForm(),
+        # Form modal edit (Editor dan pemilik). auto_id berbeda supaya id elemennya tidak
+        # bentrok dengan modal tambah; nama field tetap sama dengan field API.
+        "edit_form": AwardForm(auto_id="edit_%s"),
     }
     return render(request, "award.html", context)
 
