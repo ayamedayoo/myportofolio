@@ -6,6 +6,19 @@ NPM : 2506657333
 
 Kelas : PBP E
 
+## Daftar Isi
+
+- [Deskripsi Proyek](#deskripsi-proyek)
+  - [Progres Mingguan](#progres-mingguan)
+  - [Tugas 4: Hak Akses dan Fitur Star](#tugas-4-hak-akses-dan-fitur-star)
+  - [Tugas 5: Halaman Award yang Interaktif](#tugas-5-halaman-award-yang-interaktif)
+  - [Tugas 6: API Award dengan Django REST Framework](#tugas-6-api-award-dengan-django-rest-framework)
+  - [Endpoint](#endpoint)
+- [Cara Menjalankan Proyek (Setup Lokal)](#cara-menjalankan-proyek-setup-lokal)
+- [Deployment](#deployment)
+- [AI Disclosure](#ai-disclosure)
+- [Pertanyaan Reflektif](#pertanyaan-reflektif)
+
 ## Deskripsi Proyek
 
 Website portofolio pribadi berbasis Django, dibuat sebagai bagian dari tugas mata kuliah Pemrograman Berbasis Platform (PBP). Awalnya (Tugas 1) halaman ini cuma HTML dan CSS statis. Sekarang datanya sudah disimpan di database dan sebagian bisa dikelola langsung dari website lewat form.
@@ -264,9 +277,44 @@ Tugas 6
 - Alat yang saya pakai adalah Claude Code lewat aplikasi desktop Claude.
 - Claude membantu saya menyusun serializer, API view, dan test API, mengubah halaman Award supaya memakai API, melakukan debugging, serta memberikan arahan jika terdapat yang eror
 
-Keterbatasan AI yang saya temukan:
-- Setelah halaman Award dipindah ke API, satu test lama dari Tugas 5 jadi gagal karena masih mencari alamat endpoint JSON lama. Ini baru ketahuan setelah semua test dijalankan, jadi hasil dari AI tetap perlu dicek dengan menjalankan seluruh test, bukan test barunya saja.
-- Claude tidak tahu password akun saya, jadi untuk mencoba setiap peran di browser ia harus membuat akun uji sementara di database lokal lalu menghapusnya lagi.
+Strategi prompting:
+- Saya selalu memberi berkas soal (PDF) secara utuh, bukan meringkasnya sendiri, supaya Claude mengerjakan sesuai checklist dan rubrik yang asli.
+- Perintah saya sengaja singkat ("kerjakan ini" beserta PDF-nya). Sebelum menulis kode, Claude membaca kode yang sudah ada dulu (pola Tutorial 7 di bagian Project, aturan peran di `main/roles.py`, dan halaman Award dari Tugas 5), jadi hasilnya melanjutkan kode saya, bukan menulis ulang dari nol.
+- Setelah hasil pertama jadi, saya meminta penilaian jujur berdasarkan rubrik, lalu meminta perbaikan khusus di bagian yang masih kurang, yaitu kualitas kode dan dokumentasi.
+- Saya meminta format README dan AI disclosure mengikuti gaya minggu-minggu sebelumnya supaya dokumentasinya konsisten.
+
+Bagian yang dibantu secara spesifik:
+
+| Bagian | Bantuan Claude |
+| --- | --- |
+| `main/serializers.py` | Draf `AwardSerializer`, `StarInfoMixin`, dan `validate_<field>` dengan `strip_tags` |
+| `main/api_views.py`, `main/api_urls.py` | Draf view daftar, detail, dan star di `/api/v1/awards/` |
+| `main/models.py` | Memindahkan logika star dan filter ke `StarrableMixin` dan `AwardQuerySet` |
+| `templates/award.html`, `static/js/utils.js` | Mengubah halaman agar memakai API, menambah modal edit, tombol Sematkan, dan filter star |
+| `main/tests_api.py`, `main/tests.py` | Menulis 18 test API dan test helper model, lalu menjalankan seluruh test |
+| `README.md` | Draf penjelasan Tugas 6 dan jawaban reflektif |
+
+Yang saya putuskan sendiri:
+- Menyadari bahwa tugas yang pertama kali saya berikan salah (Tugas 7), lalu meminta semua hasilnya dihapus dan mengganti dengan soal Tugas 6.
+- Meminta penilaian berdasarkan rubrik sebelum mengumpulkan, lalu memilih bagian yang diperbaiki: kualitas kode, fungsionalitas, dan dokumentasi.
+- Meminta gaya AI disclosure dan jawaban reflektif disamakan dengan minggu-minggu sebelumnya.
+
+Log prompting (pesan yang saya kirim ke Claude, ditulis ulang tanpa salah ketik):
+1. (Melampirkan `tugas-7.pdf`) "Cari folder myportofolio lalu kerjakan ini."
+2. "Undo semuanya, ternyata saya salah mengerjakan." (Pilihan yang saya ambil: hapus semua termasuk Flutter SDK, alasannya salah tugas.)
+3. (Melampirkan `tugas-6.pdf`) "Ini yang harusnya dikerjakan."
+4. "Apakah sudah mendapatkan nilai 4/4 semuanya?"
+5. "Perbaiki kualitas kode agar 4/4 dan pastikan fungsionalitas 4."
+6. "Aku ingin kamu membuat AI disclosure dan lainnya seperti referensi minggu-minggu sebelumnya."
+7. "Berapa perkiraan nilaiku sekarang?"
+8. "Aku ingin dokumentasi dan AI dapat 4."
+
+Keterbatasan AI yang saya temukan dan perbaikannya:
+- **Claude tidak mengecek apakah tugas yang diberikan memang tugas yang sedang berjalan.** Saya awalnya salah melampirkan soal Tugas 7 (Flutter). Claude langsung mengerjakannya sampai selesai, termasuk memasang Flutter SDK, tanpa bertanya apakah Tugas 6 sudah dikerjakan. Kesalahan ini saya sadari sendiri, lalu saya minta semuanya dihapus sebelum mengerjakan Tugas 6. Pelajarannya, AI mengikuti perintah apa adanya, jadi memastikan konteks tetap tanggung jawab saya.
+- **Perubahan di satu bagian bisa merusak bagian lain tanpa disadari.** Setelah halaman Award dipindah ke API, satu test lama dari Tugas 5 gagal karena masih mencari alamat endpoint JSON lama. Ini baru ketahuan setelah semua test dijalankan dengan `python manage.py test main`. Sejak itu, setiap perubahan dicek dengan seluruh test, bukan test barunya saja.
+- **Cara AI memeriksa hasil juga bisa salah.** Saat mengecek tampilan per peran, pemeriksaan teks sederhana sempat menyimpulkan bahwa pengunjung bisa melihat modal edit. Ternyata nama modal itu juga tertulis di kode JavaScript, jadi hasilnya keliru. Pemeriksaan diulang dengan melihat elemen halaman secara langsung, dan hasilnya benar. Artinya, laporan "sudah dicek" dari AI tetap perlu dilihat cara mengeceknya.
+- **Penilaian dari AI hanyalah perkiraan.** Claude bisa membandingkan hasil dengan rubrik, tetapi nilai akhirnya tetap keputusan asisten dosen. Saya memakai perkiraan itu hanya untuk menentukan bagian mana yang perlu diperbaiki.
+- **Claude tidak bisa login dengan akun saya.** Untuk mencoba setiap peran di browser, Claude membuat tiga akun uji sementara di database lokal, lalu menghapusnya setelah selesai. Database saya kembali seperti semula (3 akun dan 18 award).
 
 
 
