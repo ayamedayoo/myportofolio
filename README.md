@@ -30,7 +30,7 @@ Halaman yang ada saat ini:
 | Tutorial 5 | Notifikasi toast. Daftar proyek dimuat lewat AJAX dengan Fetch API. Pencarian proyek berjalan saat mengetik dengan debounce. Form tambah proyek ada di dalam modal dan dikirim tanpa reload halaman. Perlindungan XSS dengan escaping di JavaScript dan pembersihan input di server. |
 | Tugas 5 | Pola Tutorial 5 diterapkan ke halaman Award: data dimuat lewat AJAX, pencarian dengan debounce, filter tingkat tanpa reload, modal tambah award, toast, star tanpa reload, dan perlindungan XSS. Fungsi JavaScript bersama dipindah ke `static/js/utils.js`. |
 | Tutorial 7 | API proyek dengan Django REST Framework: `ProjectSerializer`, permission class, API view berbasis fungsi di `/api/v1/projects/`, endpoint star, dan test dengan `APITestCase`. Halaman Project memakai API tersebut. |
-| Tugas 6 | Pola Tutorial 7 diterapkan ke bagian Award: `AwardSerializer`, API di `/api/v1/awards/` dengan hak akses empat peran, halaman Award memakai API, modal edit dengan PATCH, tombol sematkan cepat, filter "Yang saya beri star", dan 18 test API. |
+| Tugas 6 | Pola Tutorial 7 diterapkan ke bagian Award: `AwardSerializer`, API di `/api/v1/awards/` dengan hak akses empat peran, halaman Award memakai API, modal edit dengan PATCH, tombol sematkan cepat, filter "Yang saya beri star", 18 test API, serta logika star dan filter yang dipindah ke model (`StarrableMixin`, `AwardQuerySet`). |
 
 ### Tugas 4: Hak Akses dan Fitur Star
 
@@ -85,7 +85,7 @@ Di tugas ini, halaman Award tidak lagi dikirim lengkap dari server. Server hanya
 
 1. View `get_awards_json` merakit JSON secara manual dengan `JsonResponse`. Setiap award membawa jumlah star (`star_count`), status star milik akun yang sedang login (`is_starred`), dan daftar username pemberi star. Id pengguna dari database tidak ikut dikirim.
 
-2. View `create_award_ajax` hanya menerima POST. Isinya divalidasi dengan `AwardForm`, lalu server membalas dengan kode yang sesuai. Kode 201 berarti data berhasil dibuat. Kode 400 berarti isian tidak valid, dan pesan error tiap field ikut dikirim. Kode 403 berarti akun tersebut tidak berhak menambah data.
+2. (Dihapus di Tugas 6, digantikan `POST /api/v1/awards/`.) View `create_award_ajax` hanya menerima POST. Isinya divalidasi dengan `AwardForm`, lalu server membalas dengan kode yang sesuai. Kode 201 berarti data berhasil dibuat. Kode 400 berarti isian tidak valid, dan pesan error tiap field ikut dikirim. Kode 403 berarti akun tersebut tidak berhak menambah data.
 
 3. Hak akses tetap dicek di dalam view, bukan hanya dengan menyembunyikan tombol. Jadi Editor, pengguna biasa, atau pengunjung yang mencoba mengirim data langsung lewat `fetch` tetap ditolak dengan 403.
 
@@ -152,6 +152,10 @@ Di tugas ini, bagian Award punya API sendiri yang dibuat dengan Django REST Fram
 
 8. Semua teks dari API tetap di-escape dengan `escapeHtml` sebelum masuk ke HTML, dan pesan error diisi lewat `textContent`.
 
+9. Logika yang dipakai di lebih dari satu tempat dipindah ke model supaya tidak ditulis berulang. `StarrableMixin` berisi method `toggle_star`, dipakai oleh Project dan Award, baik di view lama maupun di API. `AwardQuerySet` berisi filter `search`, `at_level`, dan `starred_by_user`. API DRF dan endpoint JSON lama sama-sama memakai filter ini, jadi hasil pencarian keduanya selalu sama. Mixin ini bukan model abstrak, jadi tidak ada migrasi baru.
+
+10. Endpoint `create_award_ajax` dari Tugas 5 dan cabang JSON di `toggle_award_star` dihapus karena halaman Award sudah memakai API. Endpoint JSON Tugas 3 (`/api/awards/`) dan star lewat form Tugas 4 tetap ada supaya tautan lama tidak rusak.
+
 #### Fitur tambahan di luar instruksi
 
 1. **Tombol Sematkan / Lepas sematan** untuk Editor dan pemilik. Tombol ini mengirim PATCH `is_featured`, lalu award yang disematkan langsung pindah ke urutan teratas.
@@ -165,7 +169,7 @@ Di tugas ini, bagian Award punya API sendiri yang dibuat dengan Django REST Fram
 1. Buka `http://localhost:8000/api/v1/awards/` tanpa login. Daftar award tampil di Browsable API. Coba `?q=universitas`, `?level=national`, atau `?starred=1`.
 2. Buka `/award/` sebagai Editor. Tombol Star, Sematkan, dan Edit muncul, tetapi tombol Tambah dan Hapus tidak. Ubah nama penghargaan menjadi `<b></b>` di modal edit. Server menolaknya dan pesan error muncul di toast serta di bawah field.
 3. Login sebagai pemilik. Tambah award dengan tahun di masa depan untuk melihat error validasi, lalu perbaiki dan simpan. Hapus award tersebut lewat tombol Hapus.
-4. Jalankan `python manage.py test main.tests_api` untuk menjalankan test API Project dan Award.
+4. Jalankan `python manage.py test main` untuk menjalankan semua test (93 test). Test API Project dan Award ada di `main/tests_api.py`, sedangkan test untuk `StarrableMixin` dan `AwardQuerySet` ada di kelas `AwardModelHelperTest` di `main/tests.py`.
 
 ### Endpoint
 
@@ -173,7 +177,6 @@ Di tugas ini, bagian Award punya API sendiri yang dibuat dengan Django REST Fram
 | --- | --- |
 | `/award/` | Daftar award (dari JSON yang dideserialisasi), mendukung `?level=` dan `?q=` |
 | `/award/add/` | Form tambah award |
-| `/award/add-ajax/` | Tambah award lewat AJAX (POST, hanya pemilik), balasannya JSON dengan status 201, 400, atau 403 |
 | `/award/<uuid>/edit/` | Form edit award |
 | `/award/<uuid>/delete/` | Hapus award (POST) |
 | `/award/<uuid>/star/` | Beri atau batalkan star pada award (POST, harus login) |
