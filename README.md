@@ -29,6 +29,8 @@ Halaman yang ada saat ini:
 | Tugas 4 | Empat peran pengguna (pengunjung, pengguna biasa, Editor, pemilik) untuk Award dan Project. Tombol star di Award. Tombol aksi disembunyikan untuk yang tidak berhak. |
 | Tutorial 5 | Notifikasi toast. Daftar proyek dimuat lewat AJAX dengan Fetch API. Pencarian proyek berjalan saat mengetik dengan debounce. Form tambah proyek ada di dalam modal dan dikirim tanpa reload halaman. Perlindungan XSS dengan escaping di JavaScript dan pembersihan input di server. |
 | Tugas 5 | Pola Tutorial 5 diterapkan ke halaman Award: data dimuat lewat AJAX, pencarian dengan debounce, filter tingkat tanpa reload, modal tambah award, toast, star tanpa reload, dan perlindungan XSS. Fungsi JavaScript bersama dipindah ke `static/js/utils.js`. |
+| Tutorial 7 | API proyek dengan Django REST Framework: `ProjectSerializer`, permission class, API view berbasis fungsi di `/api/v1/projects/`, endpoint star, dan test dengan `APITestCase`. Halaman Project memakai API tersebut. |
+| Tugas 6 | Pola Tutorial 7 diterapkan ke bagian Award: `AwardSerializer`, API di `/api/v1/awards/` dengan hak akses empat peran, halaman Award memakai API, modal edit dengan PATCH, tombol sematkan cepat, filter "Yang saya beri star", dan 18 test API. |
 
 ### Tugas 4: Hak Akses dan Fitur Star
 
@@ -110,6 +112,61 @@ Di tugas ini, halaman Award tidak lagi dikirim lengkap dari server. Server hanya
 2. Ketik sebagian nama lomba di kolom pencarian. Buka tab Network di DevTools, lalu perhatikan bahwa permintaan baru terkirim setelah kamu berhenti mengetik.
 3. Login sebagai superuser, lalu tambahkan award lewat tombol Tambah Award. Coba juga isi tahun di masa depan atau judul berisi tag HTML. Server akan menolaknya dan pesan error muncul di toast.
 
+### Tugas 6: API Award dengan Django REST Framework
+
+Di tugas ini, bagian Award punya API sendiri yang dibuat dengan Django REST Framework (DRF). Halaman Award tidak lagi memakai endpoint JSON buatan sendiri dari Tugas 5. Semua aksi di halaman, mulai dari menampilkan, mencari, menambah, mengubah, memberi star, sampai menghapus, sekarang lewat API di `/api/v1/awards/`.
+
+#### Yang bisa dilakukan lewat API dan halaman Award
+
+1. Semua orang bisa membaca daftar dan detail award, termasuk lewat Browsable API di `/api/v1/awards/`.
+2. Mencari award dengan `?q=` dan memfilter tingkat dengan `?level=`. Pencarian ini dipindah dari Tugas 5 ke endpoint daftar.
+3. Pengguna yang sudah login bisa memberi atau membatalkan star.
+4. Editor dan pemilik bisa mengubah award lewat modal edit di halaman. Modal ini mengirim PATCH ke API.
+5. Hanya pemilik yang bisa menambah dan menghapus award.
+6. Pesan error dari API tampil lewat toast. Error validasi (400) juga muncul tepat di bawah field yang salah.
+
+#### Cara kerjanya
+
+1. `AwardSerializer` di `main/serializers.py` menentukan bentuk JSON sekaligus aturan validasinya. Daftar field ditulis satu per satu, bukan `"__all__"`, supaya tidak ada field yang ikut terkirim tanpa sengaja.
+
+2. Informasi star (`star_count`, `is_starred`, `starred_by_names`) dihitung di server dan hanya bisa dibaca. Kalau seseorang mengirim `star_count: 99`, nilainya diabaikan. Yang dikirim hanya username pemberi star. Email, id, dan password hash tidak pernah ikut. Ketiga field ini ada di `StarInfoMixin`, jadi bisa dipakai ulang oleh serializer lain.
+
+3. Validasi teks ada di `validate_title`, `validate_issuer`, dan `validate_description`. Ketiganya membuang tag HTML dengan `strip_tags`, sama seperti `clean_<field>` di `AwardForm`. Jalur API tidak melewati form Django, jadi aturan yang sama harus ditulis ulang di serializer. `validate_year` menolak tahun di masa depan.
+
+4. Hak akses diatur oleh permission class `IsPortfolioOwnerOrEditorOrReadOnly` di `main/permissions.py`, bukan di dalam view. Aturannya mengikuti empat peran dari Tugas 4:
+
+   | Peran | GET | Star (POST) | PUT / PATCH | POST / DELETE |
+   | --- | --- | --- | --- | --- |
+   | Pengunjung | Boleh | 403 | 403 | 403 |
+   | Pengguna biasa | Boleh | Boleh | 403 | 403 |
+   | Editor | Boleh | Boleh | Boleh | 403 |
+   | Pemilik | Boleh | Boleh | Boleh | Boleh |
+
+   View lama Tugas 4 sudah mengikuti aturan yang sama: Editor boleh mengubah, tetapi hanya pemilik yang boleh menambah dan menghapus. Jadi tidak ada view lama yang perlu dipersempit.
+
+5. Endpoint star memakai `IsAuthenticated`. Akun pemberi star selalu diambil dari `request.user`, bukan dari isi request. Jadi seseorang tidak bisa memberi star atas nama akun lain.
+
+6. View di `main/api_views.py` hanya mengatur alur dan status HTTP: 201 saat data dibuat, 400 saat input tidak valid, 403 saat tindakan tidak diizinkan, 404 saat data tidak ditemukan, dan 204 setelah data dihapus. Semua view memakai `@api_view` dan `SessionAuthentication`.
+
+7. Di halaman, permintaan yang mengubah data dikirim lewat fungsi `apiWrite` di `static/js/utils.js`. Fungsi ini selalu mengirim body JSON dan header `X-CSRFToken`, lalu mengubah error API menjadi pesan yang bisa dibaca. Halaman Project dan Award memakai fungsi yang sama. Template Award juga memuat `{% csrf_token %}` supaya cookie `csrftoken` selalu ada, termasuk untuk pengguna biasa yang hanya memberi star.
+
+8. Semua teks dari API tetap di-escape dengan `escapeHtml` sebelum masuk ke HTML, dan pesan error diisi lewat `textContent`.
+
+#### Fitur tambahan di luar instruksi
+
+1. **Tombol Sematkan / Lepas sematan** untuk Editor dan pemilik. Tombol ini mengirim PATCH `is_featured`, lalu award yang disematkan langsung pindah ke urutan teratas.
+2. **Filter "Yang saya beri star"** untuk akun yang sudah login. Filter ini memakai parameter baru `?starred=1` di API dan bisa digabung dengan pencarian serta filter tingkat.
+3. Modal edit selalu mengambil data terbaru dari API sebelum dibuka, bukan dari kartu. Jadi form tidak berisi data lama kalau award baru saja diubah orang lain.
+4. Setelah memberi star, hanya kartu itu yang diganti dengan data terbaru dari API. Daftar tidak perlu dimuat ulang.
+5. Daftar award diambil dengan `prefetch_related("starred_by")`, jadi data star semua award terbaca dengan satu query tambahan, bukan satu query per award.
+
+#### Cara mencoba
+
+1. Buka `http://localhost:8000/api/v1/awards/` tanpa login. Daftar award tampil di Browsable API. Coba `?q=universitas`, `?level=national`, atau `?starred=1`.
+2. Buka `/award/` sebagai Editor. Tombol Star, Sematkan, dan Edit muncul, tetapi tombol Tambah dan Hapus tidak. Ubah nama penghargaan menjadi `<b></b>` di modal edit. Server menolaknya dan pesan error muncul di toast serta di bawah field.
+3. Login sebagai pemilik. Tambah award dengan tahun di masa depan untuk melihat error validasi, lalu perbaiki dan simpan. Hapus award tersebut lewat tombol Hapus.
+4. Jalankan `python manage.py test main.tests_api` untuk menjalankan test API Project dan Award.
+
 ### Endpoint
 
 | URL | Keterangan |
@@ -129,6 +186,10 @@ Di tugas ini, halaman Award tidak lagi dikirim lengkap dari server. Server hanya
 | `/api/projects/` | Semua proyek dalam JSON beserta jumlah star, mendukung `?title=` |
 | `/api/projects/<uuid>/` | Satu proyek dalam JSON |
 | `/api/experiences/` | Semua experience dalam JSON |
+| `/api/v1/projects/`, `/api/v1/projects/<uuid>/`, `/api/v1/projects/<uuid>/star/` | API Project dari Tutorial 7 (DRF) |
+| `/api/v1/awards/` | API daftar award (DRF). GET untuk semua orang, mendukung `?q=`, `?level=`, `?starred=1`. POST hanya pemilik (201 atau 400). |
+| `/api/v1/awards/<uuid>/` | API detail award. GET untuk semua orang, PUT/PATCH untuk Editor dan pemilik, DELETE hanya pemilik (204). |
+| `/api/v1/awards/<uuid>/star/` | Beri atau batalkan star (POST, harus login). |
 
 ## Cara Menjalankan Proyek (Setup Lokal)
 
@@ -160,9 +221,9 @@ Di tugas ini, halaman Award tidak lagi dikirim lengkap dari server. Server hanya
    ```
 7. Kalau ingin mencoba peran Editor: daftarkan akun baru lewat `/register/`, login ke `/admin/` memakai akun superuser, buka menu Users, pilih akun tadi, lalu masukkan ke grup Editor.
 8. Buka `http://localhost:8000/` di browser.
-9. Untuk menjalankan unit test:
+9. Untuk menjalankan unit test (termasuk test API Tutorial 7 dan Tugas 6):
    ```
-   python manage.py test
+   python manage.py test main
    ```
 
 ## Deployment
@@ -193,6 +254,18 @@ Tugas 5
 
 Keterbatasan AI yang saya temukan:
 - Claude tidak bisa melihat tampilan halaman secara langsung karena tangkapan layarnya gagal. Jadi tampilan modal dan animasi toast tetap perlu saya cek sendiri di browser.
+
+
+Tugas 6
+
+- Alat yang saya pakai adalah Claude Code lewat aplikasi desktop Claude.
+- Claude membantu saya menyusun draf `AwardSerializer`, API view, test API, dan perubahan halaman Award, melakukan debugging, menjalankan test, serta memberi arahan untuk jawaban pertanyaan reflektif.
+
+Keterbatasan AI yang saya temukan di Tugas 6:
+- Setelah halaman Award dipindah ke API baru, satu test lama dari Tugas 5 gagal karena masih mencari alamat endpoint JSON lama. Masalah ini baru ketahuan saat seluruh test dijalankan, bukan hanya test API yang baru. Test lama itu lalu disesuaikan dengan endpoint baru.
+- Draf test awal memakai tahun 2026 di data contoh. Test ini akan gagal mulai tahun depan karena tahun 2026 sudah dianggap valid, sementara validasi menolak tahun di masa depan. Tahunnya diganti menjadi 2025.
+- Saat mengecek tampilan per peran, pengecekan teks sederhana sempat salah menyimpulkan bahwa pengunjung bisa melihat modal edit. Ternyata nama modal itu juga tertulis di kode JavaScript. Pengecekan diulang dengan memeriksa elemen halaman secara langsung, dan hasilnya benar.
+- Claude tidak tahu password akun saya, jadi untuk mencoba setiap peran di browser ia membuat tiga akun uji sementara di database lokal, lalu menghapusnya lagi setelah selesai.
 
 
 
@@ -255,3 +328,23 @@ Contoh gampangnya kayak gini: misalnya kita baru aja bikin model Project di mode
 3. XSS (Cross-Site Scripting) itu serangan di mana orang jahat nyelipin kode JavaScript ke dalam data di website kita. Terus kode itu ikut jalan di browser orang lain yang buka halaman tersebut. Contoh yang saya coba sendiri di tugas ini: judul award diisi `<img src="x" onerror="alert('XSS!')">`. Kalau judul itu ditampilin apa adanya, browser bakal nyoba muat gambar "x", gagal, terus ngejalanin isi `onerror`. Di contoh ini isinya cuma `alert`, tapi penyerang bisa aja ganti jadi kode yang lebih bahaya, misalnya ngirim permintaan atas nama orang yang lagi login.
 
    Yang menarik, waktu data masih ditampilin lewat template Django, kita sebenarnya udah aman tanpa sadar. Django otomatis ngubah karakter kayak `<` dan `>` jadi `&lt;` dan `&gt;`, namanya auto-escaping. Jadi browser nampilinnya sebagai teks biasa, bukan kode. Masalahnya, pas pindah ke AJAX, data dari JSON nggak lewat template Django lagi. Data itu dirakit sama JavaScript, terus dimasukin ke halaman pakai `innerHTML`. Nah, `innerHTML` ini nganggep semua isinya sebagai HTML beneran dan nggak ngelakuin escaping sama sekali. Makanya di tugas ini saya harus escaping sendiri pakai fungsi `escapeHtml`, atau pakai `textContent` yang selalu nganggep isinya sebagai teks biasa.
+
+### Tugas 6
+
+1. REST (Representational State Transfer) adalah gaya merancang API. Datanya dianggap sebagai sumber daya (resource) yang punya alamat sendiri, misalnya `/api/v1/awards/` untuk kumpulan award dan `/api/v1/awards/<id>/` untuk satu award. Apa yang ingin dilakukan ke sumber daya itu ditunjukkan oleh method HTTP: GET untuk membaca, POST untuk membuat, PUT dan PATCH untuk mengubah, dan DELETE untuk menghapus. Hasilnya ditunjukkan oleh kode status, misalnya 201 saat data dibuat, 404 saat data tidak ada, dan 403 saat tindakan tidak diizinkan. Setiap permintaan juga berdiri sendiri, jadi server tidak perlu ingat urutan permintaan sebelumnya.
+
+   Mengembalikan JSON saja belum cukup. Contohnya endpoint `/award/add-ajax/` di Tugas 5. Balasannya memang JSON, tetapi alamatnya berisi kata kerja ("add"), hanya menerima POST, dan aturan alamat serta method-nya saya buat sendiri. Kalau semua aksi dibuat begitu, misalnya `/award/hapus/` dengan POST atau `/award/get-all/`, API-nya tetap mengirim JSON tetapi tidak mengikuti aturan REST. API seperti ini sulit ditebak oleh orang lain atau aplikasi lain, misalnya aplikasi Flutter nanti.
+
+   PUT mengganti seluruh isi data, jadi semua field wajib dikirim. Kalau ada field yang tidak dikirim, serializer menolaknya dengan 400. PATCH hanya mengubah field yang dikirim, dan field lain tetap seperti semula. Di proyek saya, tombol Sematkan memakai PATCH karena hanya mengubah `is_featured`. Modal edit juga memakai PATCH. PUT cocok dipakai kalau kita memang mengirim ulang data lengkap, misalnya saat menyinkronkan satu award utuh dari aplikasi lain.
+
+2. Serializer di DRF punya dua tugas. Pertama, mengubah objek model menjadi data yang siap dikirim sebagai JSON. Kedua, sebaliknya, mengubah data JSON yang masuk menjadi data yang sudah divalidasi dan siap disimpan ke database. Jadi satu class sekaligus menjadi "kontrak" data: field apa yang dikirim, field mana yang hanya bisa dibaca, dan aturan apa yang harus dipenuhi input.
+
+   Dibandingkan merakit dictionary manual dengan `JsonResponse` seperti di Tugas 5, keuntungannya terasa di beberapa hal. Di Tugas 5, saya menulis setiap field satu per satu di `get_awards_json`, lalu memakai `AwardForm` lagi untuk validasi di `create_award_ajax`. Bentuk data keluar dan aturan data masuk ada di dua tempat yang berbeda. Dengan serializer, keduanya ada di satu class. Validasi bawaan model (pilihan `level`, batas tahun, format URL) otomatis ikut berjalan, dan field `read_only` otomatis diabaikan saat menerima input. Pesan error juga langsung berbentuk `{"title": ["..."]}` dengan status 400. Serializer yang sama dipakai untuk daftar, detail, membuat, dan mengubah data, jadi bentuk JSON-nya selalu konsisten.
+
+3. Autentikasi menjawab pertanyaan "siapa kamu?". Di proyek ini, `SessionAuthentication` membaca cookie session dari login Django, lalu mengisi `request.user`. Kalau tidak ada session, `request.user` berisi pengguna anonim. Otorisasi menjawab pertanyaan "apa yang boleh kamu lakukan?". Bagian ini diurus oleh permission class seperti `IsPortfolioOwnerOrEditorOrReadOnly`, yang memutuskan berdasarkan peran pengguna dan method HTTP-nya. Autentikasi selalu berjalan lebih dulu, karena otorisasi butuh tahu siapa penggunanya.
+
+   Menyembunyikan tombol di template hanya mengatur tampilan. Siapa pun tetap bisa mengirim permintaan langsung ke API, misalnya lewat `fetch` di console browser, Postman, atau `curl`, tanpa pernah melihat tombolnya. Saya sempat mencobanya sendiri saat mengecek tugas ini: akun Editor mengirim DELETE langsung dengan `fetch`, dan server menolaknya dengan 403. Kalau pengecekan hanya ada di template, permintaan itu akan berhasil dan datanya terhapus. Karena itu, pengecekan yang sebenarnya harus ada di server. Tombol yang disembunyikan cukup berfungsi supaya pengguna tidak bingung.
+
+4. Dengan `SessionAuthentication`, browser otomatis mengirim cookie session ke server di setiap permintaan, termasuk permintaan yang dipicu oleh website lain. Misalnya saya sedang login di portofolio saya, lalu membuka website jahat. Website itu bisa diam-diam mengirim permintaan DELETE ke `/api/v1/awards/<id>/`. Browser akan ikut mengirim cookie session saya, jadi server mengira permintaan itu memang dari saya. Serangan ini disebut CSRF (Cross-Site Request Forgery). Token CSRF mencegahnya karena website lain tidak bisa membaca token yang ada di cookie atau halaman kita. Tanpa header `X-CSRFToken` yang cocok, DRF menolak permintaan dengan 403. Itu sebabnya `SessionAuthentication` di DRF selalu memeriksa CSRF untuk method yang mengubah data.
+
+   `force_authenticate` tidak cukup untuk membuktikan hal ini karena cara kerjanya melewati proses autentikasi. Pengguna langsung "ditempelkan" ke request tanpa cookie session, dan pemeriksaan CSRF yang ada di dalam `SessionAuthentication` ikut terlewati. Test seperti itu tetap lolos walaupun perlindungan CSRF rusak atau dimatikan. Karena itu, test CSRF saya memakai `APIClient(enforce_csrf_checks=True)` dan `.login()`, yang benar-benar membuat session seperti di browser. Di test itu, POST, DELETE, dan star tanpa token ditolak dengan 403 dan isi database tidak berubah. Sebagai pembanding, PATCH dengan token yang benar berhasil.
