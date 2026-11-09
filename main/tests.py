@@ -117,9 +117,10 @@ class MainTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "award.html")
         self.assertContains(response, 'id="award-grid"')
-        self.assertContains(response, reverse("main:get_awards_json"))
+        # Sejak Tugas 6, halaman mengambil data dari API DRF, bukan endpoint JSON Tugas 5.
+        self.assertContains(response, reverse("api:award-list"))
         self.assertContains(response, f'href="{reverse("main:show_main")}"')
-        # Halaman hanya kerangka. Datanya datang dari endpoint JSON.
+        # Halaman hanya kerangka. Datanya datang dari API.
         self.assertNotContains(response, "1st Place Data Science")
 
         fields = self.client.get(reverse("main:get_awards_json")).json()[0]["fields"]
